@@ -82,16 +82,16 @@ const BlendSchema = new mongoose.Schema({
       cost: Number,
       color: String,    // <- persist the colour hex (e.g. "#aabbcc")
       timer: {
-    type: String,
-    default: '00:00:00', // format: HH:MM:SS
-  },
+        type: String,
+        default: '00:00:00', // format: HH:MM:SS
+      },
     }]
   }],
 
 
   // add to BlendSchema definition (after generation:)
-bunkerCapacity: { type: Number, default: 0 },          // global capacity (single input)
-bunkerCapacities: { type: [Number], default: [] },     // per-bunker override array (length 6 expected)
+  bunkerCapacity: { type: Number, default: 0 },          // global capacity (single input)
+  bunkerCapacities: { type: [Number], default: [] },     // per-bunker override array (length 6 expected)
 
 
   // computed fields
@@ -107,6 +107,128 @@ bunkerCapacities: { type: [Number], default: [] },     // per-bunker override ar
 });
 
 const Blend = mongoose.model('Blend', BlendSchema);
+
+/* -------------------- UnitMap model + endpoints (ensures exactly 3 global blend docs) ---------- */
+const UnitMapSchema = new mongoose.Schema({
+  unit: { type: Number, required: true, unique: true }, // 1,2,3
+  blendId: { type: mongoose.Schema.Types.ObjectId, ref: 'Blend', required: true },
+}, { timestamps: true });
+
+const UnitMap = mongoose.models.UnitMap || mongoose.model('UnitMap', UnitMapSchema);
+
+// GET mapping: returns { "1": "<id1>", "2": "<id2>", "3": "<id3>" } if exists or {}.
+app.get('/api/units', async (req, res) => {
+  try {
+    const docs = await UnitMap.find({}).lean();
+    const map = {};
+    docs.forEach(d => { map[String(d.unit)] = String(d.blendId); });
+    return res.json(map);
+  } catch (err) {
+    console.error('GET /api/units error', err);
+    return res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// POST /api/units/init -> create 3 blend docs (empty/seed) and map them
+// IMPORTANT: This should normally be run only once (or used when you intentionally reset).
+app.post('/api/units/init', async (req, res) => {
+  try {
+    // If mapping already present, return it (idempotent)
+    const existing = await UnitMap.find({}).lean();
+    if (existing && existing.length >= 3) {
+      const map = {};
+      existing.forEach(d => { map[String(d.unit)] = String(d.blendId); });
+      return res.status(200).json({ message: 'Already initialized', map });
+    }
+
+    // Build 3 starter blend documents (minimal payload)
+    const starter = {
+      rows: Array.from({ length: (process.env.NUM_COAL_ROWS ? Number(process.env.NUM_COAL_ROWS) : 5) }, () => ({ coal: '', percentages: Array(8).fill(0), gcv: 0, cost: 0})),
+      flows: Array(8).fill(0),
+      generation: 0,
+      bunkerCapacity: 0,
+      bunkerCapacities: Array(8).fill(0)
+    };
+
+    // Create three blends
+    const created = [];
+    for (let u = 1; u <= 3; u++) {
+      const b = new Blend(Object.assign({}, starter, { ts: Date.now() }));
+      await b.save();
+      created.push({ unit: u, id: b._id });
+    }
+
+    // Persist UnitMap entries
+    const ops = created.map(c => ({ updateOne: { filter: { unit: c.unit }, update: { unit: c.unit, blendId: c.id }, upsert: true } }));
+    if (ops.length) await UnitMap.bulkWrite(ops);
+
+    const map = {};
+    created.forEach(c => { map[String(c.unit)] = String(c.id); });
+    return res.status(201).json({ message: 'Initialized 3 unit blends', map });
+  } catch (err) {
+    console.error('POST /api/units/init error', err);
+    return res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// PUT /api/units/:unit -> set/override the blendId for a unit (admin/management only)
+app.put('/api/units/:unit', async (req, res) => {
+  try {
+    const unit = Number(req.params.unit || 0);
+    if (![1,2,3].includes(unit)) return res.status(400).json({ error: 'unit must be 1,2 or 3' });
+    const { blendId } = req.body;
+    if (!blendId) return res.status(400).json({ error: 'blendId required' });
+
+    // optional: validate blend exists
+    const b = await Blend.findById(blendId);
+    if (!b) return res.status(404).json({ error: 'Blend not found' });
+
+    const entry = await UnitMap.findOneAndUpdate({ unit }, { unit, blendId }, { upsert: true, new: true }).lean();
+    return res.json({ message: 'Mapping updated', unit: entry.unit, blendId: String(entry.blendId) });
+  } catch (err) {
+    console.error('PUT /api/units/:unit error', err);
+    return res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
+
+// DELETE /api/units/reset -> remove mappings and (optionally) delete the prior blend docs and re-create three fresh ones.
+// WARNING: use with care. This is for your management when you "erase all the data" and want exactly 3 new ids.
+app.delete('/api/units/reset', async (req, res) => {
+  try {
+    // find existing maps
+    const existing = await UnitMap.find({}).lean();
+    const blendIds = existing.map(x => x.blendId).filter(Boolean);
+    // delete the mapping entries
+    await UnitMap.deleteMany({});
+    // Optionally delete the actual Blend docs associated
+    if (blendIds.length) {
+      await Blend.deleteMany({ _id: { $in: blendIds } });
+    }
+    // Now create new three blends (re-use /api/units/init logic)
+    // create three minimal blends
+    const starter = {
+      rows: Array.from({ length: (process.env.NUM_COAL_ROWS ? Number(process.env.NUM_COAL_ROWS) : 5) }, () => ({ coal: '', percentages: Array(8).fill(0), gcv: 0, cost: 0})),
+      flows: Array(8).fill(0),
+      generation: 0,
+      bunkerCapacity: 0,
+      bunkerCapacities: Array(8).fill(0)
+    };
+    const created = [];
+    for (let u = 1; u <= 3; u++) {
+      const b = new Blend(Object.assign({}, starter, { ts: Date.now() }));
+      await b.save();
+      created.push({ unit: u, id: b._id });
+    }
+    const ops = created.map(c => ({ updateOne: { filter: { unit: c.unit }, update: { unit: c.unit, blendId: c.id }, upsert: true } }));
+    if (ops.length) await UnitMap.bulkWrite(ops);
+    const map = {};
+    created.forEach(c => { map[String(c.unit)] = String(c.id); });
+    return res.json({ message: 'Reset and created new 3 blends', map });
+  } catch (err) {
+    console.error('DELETE /api/units/reset error', err);
+    return res.status(500).json({ error: err.message || 'Server error' });
+  }
+});
 
 /* -------------------- Upload (Excel -> Coal collection) -------------------- */
 const storage = multer.memoryStorage();
@@ -221,150 +343,6 @@ function calcAFT(ox) {
 }
 
 /* -------------------- compute blend metrics (per-mill aware) -------------------- */
-// async function computeBlendMetrics(rows, flows, generation, coalColorMap = {}) {
-//   // rows: array (each row may have: coal (string or object), percentages[], gcv, cost)
-//   const oxKeys = ["SiO2","Al2O3","Fe2O3","CaO","MgO","Na2O","K2O","SO3","TiO2"];
-
-//   // Load all coal docs once
-//   const allCoals = await Coal.find().lean();
-//   const byId = {};
-//   const byNameLower = {};
-//   allCoals.forEach(c => {
-//     if (c._id) byId[String(c._id)] = c;
-//     if (c.coal) byNameLower[String(c.coal).toLowerCase()] = c;
-//   });
-
-//   function findCoalRef(ref) {
-//     if (!ref) return null;
-//     if (byId[String(ref)]) return byId[String(ref)];
-//     const lower = String(ref).toLowerCase();
-//     if (byNameLower[lower]) return byNameLower[lower];
-//     return null;
-//   }
-
-//   // helper to get per-mill coalRef from row (row.coal may be string or object)
-//   function coalRefForRowAndMill(row, mill) {
-//     if (!row) return null;
-//     if (row.coal && typeof row.coal === 'object' && row.coal !== null) {
-//       return row.coal[String(mill)] || '';
-//     }
-//     return row.coal || '';
-//   }
-
-//   const blendedGCVPerMill = [];
-//   const aftPerMill = [];
-
-//   for (let m = 0; m < 8; m++) {
-//     let blendedGCV = 0;
-//     const ox = {};
-//     oxKeys.forEach(k => ox[k] = 0);
-
-//     for (let i = 0; i < (rows ? rows.length : 0); i++) {
-//       const row = rows[i] || {};
-//       const perc = (Array.isArray(row.percentages) && row.percentages[m]) ? Number(row.percentages[m]) : 0;
-//       const weight = perc / 100;
-
-//       // resolve per-mill coalRef if supplied
-//       const coalRef = coalRefForRowAndMill(row, m);
-//       const coalDoc = findCoalRef(coalRef);
-
-//       // gcv: prefer explicit row.gcv (global) else coalDoc.gcv
-//       const gcvVal = (row.gcv !== undefined && row.gcv !== null && row.gcv !== '') ? Number(row.gcv) : (coalDoc ? (Number(coalDoc.gcv) || 0) : 0);
-//       blendedGCV += gcvVal * weight;
-
-//       // accumulate oxides from coalDoc if present (or from row(if provided))
-//       if (coalDoc) {
-//         oxKeys.forEach(k => {
-//           ox[k] += (Number(coalDoc[k]) || 0) * weight;
-//         });
-//       } else {
-//         oxKeys.forEach(k => {
-//           if (row[k] !== undefined && row[k] !== null && row[k] !== '') {
-//             ox[k] += (Number(row[k]) || 0) * weight;
-//           }
-//         });
-//       }
-//     } // rows loop
-
-//     blendedGCVPerMill.push(Number(blendedGCV));
-//     const oxTotal = Object.values(ox).reduce((s, v) => s + (Number(v) || 0), 0);
-//     const aftVal = (oxTotal === 0) ? null : Number(calcAFT(ox));
-//     aftPerMill.push(aftVal);
-//   } // mills loop
-
-//   // totals & weighted averages using flows
-//   let totalFlow = 0;
-//   let weightedGCV = 0;
-//   let weightedAFT = 0;
-//   let contributedAFTFlow = 0;
-
-//   for (let m = 0; m < 8; m++) {
-//     const flow = (Array.isArray(flows) && flows[m]) ? Number(flows[m]) : 0;
-//     totalFlow += flow;
-//     weightedGCV += flow * (blendedGCVPerMill[m] || 0);
-
-//     const aftVal = aftPerMill[m];
-//     if (aftVal !== null && !isNaN(aftVal)) {
-//       weightedAFT += flow * aftVal;
-//       contributedAFTFlow += flow;
-//     }
-//   }
-
-//   const avgGCV = totalFlow > 0 ? (weightedGCV / totalFlow) : 0;
-//   const avgAFT = contributedAFTFlow > 0 ? (weightedAFT / contributedAFTFlow) : null;
-//   const heatRate = (generation && generation > 0 && totalFlow > 0) ? ((totalFlow * avgGCV) / generation) : null;
-
-//   // compute cost rate (weighted by sum of percentages per row)
-//   function rowQtySum(row) {
-//     if (!row || !Array.isArray(row.percentages)) return 0;
-//     return row.percentages.reduce((s, v) => s + (Number(v) || 0), 0);
-//   }
-//   const qtyPerRow = (rows || []).map(rowQtySum);
-//   const costPerRow = (rows || []).map((r, idx) => {
-//     if (r && r.cost !== undefined && r.cost !== null && r.cost !== '') return Number(r.cost) || 0;
-//     const cdoc = findCoalRef((r || {}).coal);
-//     return cdoc ? (Number(cdoc.cost) || 0) : 0;
-//   });
-
-//   let totalCost = 0, totalQty = 0;
-//   for (let i = 0; i < qtyPerRow.length; i++) {
-//     totalCost += (qtyPerRow[i] || 0) * (costPerRow[i] || 0);
-//     totalQty += (qtyPerRow[i] || 0);
-//   }
-//   const costRate = totalQty > 0 ? (totalCost / totalQty) : 0;
-
-//   // Build per-bunker structure (independent storage)
-//   const bunkers = [];
-//   for (let m = 0; m < 8; m++) {
-//     const layers = [];
-//     for (let rIdx = 0; rIdx < (rows || []).length; rIdx++) {
-//       const row = rows[rIdx];
-//       const pct = (Array.isArray(row.percentages) && row.percentages[m]) ? Number(row.percentages[m]) : 0;
-//       if (!pct || pct <= 0) continue;
-//       const coalRef = coalRefForRowAndMill(row, m);
-//       const coalDoc = findCoalRef(coalRef);
-//       layers.push({
-//         rowIndex: rIdx + 1,
-//         coal: coalDoc ? coalDoc.coal : (coalRef || ''),
-//         percent: Number(pct),
-//         gcv: coalDoc ? (Number(coalDoc.gcv) || Number(row.gcv || 0)) : Number(row.gcv || 0),
-//         cost: coalDoc ? (Number(coalDoc.cost) || Number(row.cost || 0)) : Number(row.cost || 0)
-//       });
-//     }
-//     bunkers.push({ layers });
-//   }
-
-//   return {
-//     totalFlow: Number(totalFlow),
-//     avgGCV: Number(avgGCV),
-//     avgAFT: (avgAFT === null ? null : Number(avgAFT)),
-//     heatRate: (heatRate === null ? null : Number(heatRate)),
-//     costRate: Number(costRate),
-//     aftPerMill: aftPerMill.map(v => (v === null ? null : Number(v))),
-//     blendedGCVPerMill: blendedGCVPerMill.map(v => Number(v)),
-//     bunkers
-//   };
-// }
 async function computeBlendMetrics(rows, flows, generation, coalColorMap = {}) {
   // rows: array (each row may have: coal (string or object), percentages[], gcv, cost)
   const oxKeys = ["SiO2","Al2O3","Fe2O3","CaO","MgO","Na2O","K2O","SO3","TiO2"];
@@ -612,55 +590,47 @@ app.post('/api/blend', async (req, res) => {
     const rowsToSave = (rows || []).map(row => resolveRowCoalField(row));
 
     // compute metrics including bunkers
-    // compute metrics including bunkers (pass client-sent coalColorMap)
-// const metrics = await computeBlendMetrics(rowsToSave, flows, generation, (req.body && req.body.coalColorMap) ? req.body.coalColorMap : {});
-// --- merge client-sent timers into computed metrics.bunkers (if provided) ---
-function mergeClientTimersIntoMetrics(metricsBunkers, clientBunkers) {
-  if (!Array.isArray(metricsBunkers) || !Array.isArray(clientBunkers)) return;
-  for (let bi = 0; bi < Math.min(metricsBunkers.length, clientBunkers.length); bi++) {
-    const mB = metricsBunkers[bi];
-    const cB = clientBunkers[bi];
-    if (!mB || !Array.isArray(mB.layers) || !cB || !Array.isArray(cB.layers)) continue;
-    // build map by rowIndex for client layers
-    const clientMap = {};
-    cB.layers.forEach(l => {
-      if (l && l.rowIndex !== undefined) clientMap[Number(l.rowIndex)] = l;
-    });
-    // apply timers to metric layers by matching rowIndex
-    mB.layers.forEach(layer => {
-      if (!layer || layer.rowIndex === undefined) return;
-      const key = Number(layer.rowIndex);
-      if (clientMap[key] && clientMap[key].timer) {
-        layer.timer = clientMap[key].timer;
+    function mergeClientTimersIntoMetrics(metricsBunkers, clientBunkers) {
+      if (!Array.isArray(metricsBunkers) || !Array.isArray(clientBunkers)) return;
+      for (let bi = 0; bi < Math.min(metricsBunkers.length, clientBunkers.length); bi++) {
+        const mB = metricsBunkers[bi];
+        const cB = clientBunkers[bi];
+        if (!mB || !Array.isArray(mB.layers) || !cB || !Array.isArray(cB.layers)) continue;
+        const clientMap = {};
+        cB.layers.forEach(l => {
+          if (l && l.rowIndex !== undefined) clientMap[Number(l.rowIndex)] = l;
+        });
+        mB.layers.forEach(layer => {
+          if (!layer || layer.rowIndex === undefined) return;
+          const key = Number(layer.rowIndex);
+          if (clientMap[key] && clientMap[key].timer) {
+            layer.timer = clientMap[key].timer;
+          } else if (clientMap[key] && clientMap[key].rawSeconds != null && isFinite(clientMap[key].rawSeconds)) {
+            const s = Math.max(0, Math.round(clientMap[key].rawSeconds));
+            const hh = String(Math.floor(s/3600)).padStart(2,'0');
+            const mm = String(Math.floor((s%3600)/60)).padStart(2,'0');
+            const ss = String(s % 60).padStart(2,'0');
+            layer.timer = `${hh}:${mm}:${ss}`;
+          }
+        });
       }
-      // optionally accept rawSeconds too if client sent it
-      else if (clientMap[key] && clientMap[key].rawSeconds != null && isFinite(clientMap[key].rawSeconds)) {
-        const s = Math.max(0, Math.round(clientMap[key].rawSeconds));
-        const hh = String(Math.floor(s/3600)).padStart(2,'0');
-        const mm = String(Math.floor((s%3600)/60)).padStart(2,'0');
-        const ss = String(s % 60).padStart(2,'0');
-        layer.timer = `${hh}:${mm}:${ss}`;
-      }
-    });
-  }
-}
-const metrics = await computeBlendMetrics(rowsToSave, flows, generation, (req.body && req.body.coalColorMap) ? req.body.coalColorMap : {});
+    }
+    const metrics = await computeBlendMetrics(rowsToSave, flows, generation, (req.body && req.body.coalColorMap) ? req.body.coalColorMap : {});
 
-// merge timers if client posted them
-if (req.body && Array.isArray(req.body.clientBunkers)) {
-  mergeClientTimersIntoMetrics(metrics.bunkers, req.body.clientBunkers);
-}
-
+    // merge timers if client posted them
+    if (req.body && Array.isArray(req.body.clientBunkers)) {
+      mergeClientTimersIntoMetrics(metrics.bunkers, req.body.clientBunkers);
+    }
 
     // create and save blend - include bunkers from metrics
-const doc = new Blend(Object.assign({}, {
-  rows: rowsToSave,
-  flows,
-  generation,
-  bunkerCapacity: Number(bunkerCapacity) || 0,
-  bunkerCapacities: Array.isArray(bunkerCapacities) ? bunkerCapacities.map(v => Number(v||0)) : [],
-  bunkers: metrics.bunkers || []
-}, metrics));
+    const doc = new Blend(Object.assign({}, {
+      rows: rowsToSave,
+      flows,
+      generation,
+      bunkerCapacity: Number(bunkerCapacity) || 0,
+      bunkerCapacities: Array.isArray(bunkerCapacities) ? bunkerCapacities.map(v => Number(v||0)) : [],
+      bunkers: metrics.bunkers || []
+    }, metrics));
 
     await doc.save();
     return res.status(201).json({ message: 'Saved', id: doc._id });
@@ -675,8 +645,8 @@ const doc = new Blend(Object.assign({}, {
  */
 app.put('/api/blend/:id', async (req, res) => {
   try {
-const { id } = req.params;
-const { rows, flows, generation, bunkerCapacity, bunkerCapacities } = req.body;
+    const { id } = req.params;
+    const { rows, flows, generation, bunkerCapacity, bunkerCapacities } = req.body;
     if (!Array.isArray(rows) || !Array.isArray(flows)) {
       return res.status(400).json({ error: 'Invalid payload: rows[] and flows[] required' });
     }
@@ -718,57 +688,51 @@ const { rows, flows, generation, bunkerCapacity, bunkerCapacities } = req.body;
     }
 
     const rowsToSave = (rows || []).map(row => resolveRowCoalField(row));
-    // const metrics = await computeBlendMetrics(rowsToSave, flows, generation, (req.body && req.body.coalColorMap) ? req.body.coalColorMap : {});
-// --- merge client-sent timers into computed metrics.bunkers (if provided) ---
-function mergeClientTimersIntoMetrics(metricsBunkers, clientBunkers) {
-  if (!Array.isArray(metricsBunkers) || !Array.isArray(clientBunkers)) return;
-  for (let bi = 0; bi < Math.min(metricsBunkers.length, clientBunkers.length); bi++) {
-    const mB = metricsBunkers[bi];
-    const cB = clientBunkers[bi];
-    if (!mB || !Array.isArray(mB.layers) || !cB || !Array.isArray(cB.layers)) continue;
-    // build map by rowIndex for client layers
-    const clientMap = {};
-    cB.layers.forEach(l => {
-      if (l && l.rowIndex !== undefined) clientMap[Number(l.rowIndex)] = l;
-    });
-    // apply timers to metric layers by matching rowIndex
-    mB.layers.forEach(layer => {
-      if (!layer || layer.rowIndex === undefined) return;
-      const key = Number(layer.rowIndex);
-      if (clientMap[key] && clientMap[key].timer) {
-        layer.timer = clientMap[key].timer;
+
+    function mergeClientTimersIntoMetrics(metricsBunkers, clientBunkers) {
+      if (!Array.isArray(metricsBunkers) || !Array.isArray(clientBunkers)) return;
+      for (let bi = 0; bi < Math.min(metricsBunkers.length, clientBunkers.length); bi++) {
+        const mB = metricsBunkers[bi];
+        const cB = clientBunkers[bi];
+        if (!mB || !Array.isArray(mB.layers) || !cB || !Array.isArray(cB.layers)) continue;
+        const clientMap = {};
+        cB.layers.forEach(l => {
+          if (l && l.rowIndex !== undefined) clientMap[Number(l.rowIndex)] = l;
+        });
+        mB.layers.forEach(layer => {
+          if (!layer || layer.rowIndex === undefined) return;
+          const key = Number(layer.rowIndex);
+          if (clientMap[key] && clientMap[key].timer) {
+            layer.timer = clientMap[key].timer;
+          } else if (clientMap[key] && clientMap[key].rawSeconds != null && isFinite(clientMap[key].rawSeconds)) {
+            const s = Math.max(0, Math.round(clientMap[key].rawSeconds));
+            const hh = String(Math.floor(s/3600)).padStart(2,'0');
+            const mm = String(Math.floor((s%3600)/60)).padStart(2,'0');
+            const ss = String(s % 60).padStart(2,'0');
+            layer.timer = `${hh}:${mm}:${ss}`;
+          }
+        });
       }
-      // optionally accept rawSeconds too if client sent it
-      else if (clientMap[key] && clientMap[key].rawSeconds != null && isFinite(clientMap[key].rawSeconds)) {
-        const s = Math.max(0, Math.round(clientMap[key].rawSeconds));
-        const hh = String(Math.floor(s/3600)).padStart(2,'0');
-        const mm = String(Math.floor((s%3600)/60)).padStart(2,'0');
-        const ss = String(s % 60).padStart(2,'0');
-        layer.timer = `${hh}:${mm}:${ss}`;
-      }
-    });
-  }
-}
-const metrics = await computeBlendMetrics(rowsToSave, flows, generation, (req.body && req.body.coalColorMap) ? req.body.coalColorMap : {});
+    }
+    const metrics = await computeBlendMetrics(rowsToSave, flows, generation, (req.body && req.body.coalColorMap) ? req.body.coalColorMap : {});
 
-// merge timers if client posted them
-if (req.body && Array.isArray(req.body.clientBunkers)) {
-  mergeClientTimersIntoMetrics(metrics.bunkers, req.body.clientBunkers);
-}
+    // merge timers if client posted them
+    if (req.body && Array.isArray(req.body.clientBunkers)) {
+      mergeClientTimersIntoMetrics(metrics.bunkers, req.body.clientBunkers);
+    }
 
-
-const updated = await Blend.findByIdAndUpdate(
-  id,
-  Object.assign({}, {
-    rows: rowsToSave,
-    flows,
-    generation,
-    bunkerCapacity: Number(bunkerCapacity) || 0,
-    bunkerCapacities: Array.isArray(bunkerCapacities) ? bunkerCapacities.map(v => Number(v||0)) : [],
-    bunkers: metrics.bunkers || []
-  }, metrics),
-  { new: true }
-);
+    const updated = await Blend.findByIdAndUpdate(
+      id,
+      Object.assign({}, {
+        rows: rowsToSave,
+        flows,
+        generation,
+        bunkerCapacity: Number(bunkerCapacity) || 0,
+        bunkerCapacities: Array.isArray(bunkerCapacities) ? bunkerCapacities.map(v => Number(v||0)) : [],
+        bunkers: metrics.bunkers || []
+      }, metrics),
+      { new: true }
+    );
 
     if (!updated) return res.status(404).json({ error: 'Blend not found' });
 
@@ -806,6 +770,3 @@ app.get('/api/coal/count', async (req, res) => {
 /* -------------------- Start server -------------------- */
 const PORT = process.env.PORT || 5000;
 app.listen(PORT, () => console.log(`Server listening on ${PORT}`));
-//the file that i have shared are basically 3 files these are the files for my website in this website i am already 
-//impkementing the logic of submitting data to the database now similarly for a specific coal that i am submiting i want that 
-//the specific coal colour should also get submitted to the database so that
