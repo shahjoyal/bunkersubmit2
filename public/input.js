@@ -40,6 +40,62 @@ function setCurrentUnit(u){
   if (saveBtn) saveBtn.textContent = `Submit (Unit ${u})`;
 }
 
+// ---------- Server-backed unit mapping helpers (new) ----------
+window.serverUnitMap = {}; // in-memory server mapping
+
+async function fetchServerUnitMap(){
+  try {
+    const res = await fetch(API_BASE + '/units');
+    if (!res.ok) {
+      console.warn('fetchServerUnitMap failed', res.status);
+      return {};
+    }
+    const map = await res.json();
+    try { writeBlendIds(map); } catch(e){} // persist fallback
+    window.serverUnitMap = map || {};
+    return map || {};
+  } catch(e) {
+    console.warn('fetchServerUnitMap error', e);
+    return {};
+  }
+}
+
+async function ensureServerUnitMapping(){
+  // first try fetch
+  const map = await fetchServerUnitMap();
+  const have3 = map && map['1'] && map['2'] && map['3'];
+  if (have3) return map;
+  // try to init server mapping (idempotent)
+  try {
+    const res = await fetch(API_BASE + '/units/init', { method: 'POST' });
+    if (!res.ok) {
+      console.warn('units/init failed', res.status);
+      return await fetchServerUnitMap();
+    }
+    const data = await res.json();
+    const createdMap = data.map || (data && data.map) || {};
+    window.serverUnitMap = createdMap;
+    try { writeBlendIds(createdMap); } catch(e){}
+    return createdMap;
+  } catch (e) {
+    console.warn('ensureServerUnitMapping error', e);
+    return {};
+  }
+}
+
+async function getBlendIdForUnit(unit){
+  unit = Number(unit || window.currentUnit || 1);
+  if (!unit) return null;
+  // prefer server in-memory map
+  if (window.serverUnitMap && window.serverUnitMap[String(unit)]) return window.serverUnitMap[String(unit)];
+  // fetch server map
+  await fetchServerUnitMap();
+  if (window.serverUnitMap && window.serverUnitMap[String(unit)]) return window.serverUnitMap[String(unit)];
+  // fallback to localStorage mapping
+  const local = readBlendIds();
+  return local && local[unit] ? local[unit] : null;
+}
+
 // ---------- per-unit payload cache (client-side) ----------
 const PAYLOAD_CACHE_KEY = '__blendPayloadByUnit_v1';
 
@@ -165,8 +221,7 @@ function setCurrentUnitFast(u){
     // DO NOT await it here; let it update UI when available.
     (async function backgroundFetch(){
       try {
-        const ids = readBlendIds ? readBlendIds() : {};
-        const id = ids && ids[u] ? ids[u] : null;
+        const id = await getBlendIdForUnit(u);
         if (!id) return;
         const res = await fetch(API_BASE + '/blend/' + id);
         if (!res.ok) return;
@@ -199,11 +254,12 @@ window.setCurrentUnit = setCurrentUnitFast;
 function prefetchOtherUnits(current){
   setTimeout(async ()=>{
     try {
-      const ids = readBlendIds ? readBlendIds() : {};
+      // get mapping from server if present
+      await fetchServerUnitMap();
       for (let u = 1; u <= 3; u++) {
         if (u === current) continue;
         if (inMemoryPayloadCache[u]) continue; // already cached
-        const id = ids && ids[u] ? ids[u] : null;
+        const id = (window.serverUnitMap && window.serverUnitMap[String(u)]) ? window.serverUnitMap[String(u)] : (readBlendIds()[u] || null);
         if (!id) continue;
         fetch(API_BASE + '/blend/' + id)
           .then(r => { if(!r.ok) throw r; return r.json(); })
@@ -422,9 +478,9 @@ function populateFormFromPayload(payload) {
 
 /**
  * Load a unit's saved payload (if any) and populate UI.
- * - reads ids mapping from localStorage
+ * - uses server mapping (getBlendIdForUnit)
  * - if id found -> GET /api/blend/:id and populate
- * - if no id -> clears the UI for an empty unit
+ * - if no id -> clears the UI for an empty unit (or uses local cache)
  */
 async function loadUnitData(unit) {
   try {
@@ -440,8 +496,7 @@ async function loadUnitData(unit) {
     } catch (e) { console.warn('payload cache read failed', e); }
 
     // 2) Now try to fetch server copy if we have an id; if server returns new payload, update UI & cache
-    const ids = readBlendIds();
-    const id = ids && ids[unit] ? ids[unit] : null;
+    const id = await getBlendIdForUnit(unit);
 
     if (!id) {
       // no saved id -> if cache existed we already populated; if not, clear UI
@@ -481,6 +536,7 @@ async function loadUnitData(unit) {
       const cache = readPayloadCache();
       cache[unit] = payload;
       writePayloadCache(cache);
+      inMemoryPayloadCache[unit] = payload; // also update fast memory
     } catch(e){ console.warn('failed to write server payload to cache', e); }
 
     console.info('[loadUnitData] loaded unit', unit, 'id', id);
@@ -505,7 +561,7 @@ async function loadUnitData(unit) {
   window.setCurrentUnit = function(u){
     // call existing (if previously defined) to keep UI button active text etc
     try { if (typeof origSet === 'function') origSet(u); else { /* call local if available */ } } catch(e){}
-    // now load unit data
+    // now load unit data (use server mapping under the hood)
     try { loadUnitData(u); } catch(e) { console.warn('loadUnitData failed for', u, e); }
   };
 })();
@@ -684,10 +740,10 @@ async function saveToServer(){
     var payload = collectFormData();
     console.log('[saveToServer] payload', payload);
 
-    // read stored ids per unit
+    // read stored ids per unit (fallback), prefer server mapping
     var ids = readBlendIds();
     var unit = window.currentUnit || 1;
-    var idForUnit = ids[unit] || null;
+    var idForUnit = await getBlendIdForUnit(unit);
 
     // choose endpoint & method
     var url, method;
@@ -719,8 +775,21 @@ async function saveToServer(){
 
     // if we POSTed (no previous id), record the returned id for this unit
     if(!idForUnit && returnedId){
+      // update local fallback mapping
       ids[unit] = returnedId;
       writeBlendIds(ids);
+      // update server mapping so all clients will use same id going forward
+      try {
+        await fetch(API_BASE + '/units/' + unit, {
+          method: 'PUT',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ blendId: returnedId })
+        });
+        // refresh server map after successful PUT
+        await fetchServerUnitMap();
+      } catch (e) {
+        console.warn('Failed to update server unit mapping (PUT /api/units/:unit)', e);
+      }
     }
 
     // Save payload to local cache for immediate restore on unit switch
@@ -730,12 +799,13 @@ async function saveToServer(){
       const serverPayload = data.payload || data.data || null;
       cache[unit] = serverPayload || payload;
       writePayloadCache(cache);
+      inMemoryPayloadCache[unit] = cache[unit];
     } catch(e){
       console.warn('failed to write payload cache', e);
     }
 
     // show user which unit / id saved
-    var shownId = ids[unit] || returnedId || 'unknown';
+    var shownId = (window.serverUnitMap && window.serverUnitMap[unit]) || ids[unit] || returnedId || 'unknown';
     alert('Saved (unit: ' + unit + ' — id: ' + shownId + ')');
     console.log('[saveToServer] stored ids:', ids);
 
@@ -795,20 +865,19 @@ async function loadCoalListAndPopulate(){
 
 
 /* wire up onload */
-window.addEventListener('load', function(){
+window.addEventListener('load', async function(){
+  // Ensure server has canonical 3 unit mappings (creates if missing)
+  try { await ensureServerUnitMapping(); } catch(e){ console.warn('ensureServerUnitMapping failed', e); }
+
   loadCoalListAndPopulate().catch(e => console.error('[coal-helper] populate error', e));
   // small delayed init to ensure main calculations are present
   setTimeout(()=>{ if(typeof calculateBlended === 'function') calculateBlended(); if(typeof updateBunkerColors === 'function') updateBunkerColors(); }, 300);
 
-    try { initUnitButtons(); } catch(e) { console.warn('initUnitButtons error', e); }
-      try { setCurrentUnit(window.currentUnit || 1); } catch(e) { console.warn('setCurrentUnit error', e); }
+  try { initUnitButtons(); } catch(e) { console.warn('initUnitButtons error', e); }
+  try { setCurrentUnit(window.currentUnit || 1); } catch(e) { console.warn('setCurrentUnit error', e); }
 });
 
 /* --- helper: when user picks a coal per cell (mill) call setCellCoal(row,mill,coalId) --- */
 /* Example: in your UI when user picks coal for bunker 2 (mill=1) for row 3 call setCellCoal(3,1,'<coal-id>') */
 
 /* (other UI helpers such as updateBunkerColors / calculateBlended / tooltip code live in input.html and still work with this input.js) */
-
-
-
-
