@@ -1,0 +1,1172 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Coal Blending — Sidebar Overlay (no-shift)</title>
+  <title>Coal Blending Ratio — modified</title>
+<style>
+/* ================ Integrated & Cleaned Stylesheet ================
+   Merged from user-provided styles: unified variables, removed duplicates,
+   and organized sections for readability.
+   ================================================================ */
+
+/* -------------------- Core variables & base -------------------- */
+:root{
+  --bg: #F7F8FA;
+  --card: #fff;
+  --muted: #6b7280;
+  --accent: #02008a;
+
+  --navbar-height: 65px;
+  --input-height: 72px; /* change if your input-section grows */
+
+  /* available vertical area for diagram/mills */
+  --available-height: calc(100vh - var(--navbar-height) - var(--input-height) - 40px);
+
+  /* layout tuning knobs */
+  --mills-gap: 12px;
+  --page-max: 1800px;                 /* page max width */
+  --diagram-inner-max: 1600px;        /* cap white diagram card width */
+
+  /* Sidebar sizing */
+  --sidebar-width: 160px;     /* adjust this to change width */
+  --sidebar-offset: 8px;      /* gap between sidebar and diagram card */
+
+  --bunker-top-line-distance: 30px;
+  --bunker-arrow-height: 90px;
+  --line-left-offset: 4%;
+  --line-right-offset: 8.2%;
+  --arrow-width: 2px;
+  --arrow-head-size: 10px;
+
+  --add-coal-translate-y: -40%;
+}
+
+/* Box sizing & base text */
+*, *::before, *::after { box-sizing: border-box; }
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: #111;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: Inter, system-ui, Arial, Helvetica, sans-serif;
+
+  /* avoid page scroll; allow internal panels to scroll if needed */
+  overflow: hidden;
+}
+
+/* Hide dev helpers if present */
+#loader, #downloadPDF, .summary-table, #summaryHidden { display: none !important; }
+
+/* -------------------- NAVBAR -------------------- */
+.navbar {
+  width: 100%;
+  background-color: #f7f8fa;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: var(--navbar-height);
+  z-index: 1100;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.06);
+}
+.navbar img { max-height: calc(var(--navbar-height) - 10px); object-fit: contain; }
+.navbar h1 { margin: 0 12px; font-size: 20px; color: #000; font-weight:700; }
+.nav-buttons { display:flex; gap:10px; align-items:center; margin-right:8px; }
+.navbar button {
+  padding: 10px 15px;
+  background-color: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  border-radius: 6px;
+  font-weight: 700;
+}
+.navbar button:hover { background-color: #001cbb; }
+
+/* -------------------- INPUT SECTION -------------------- */
+.input-section {
+  position: relative;
+  margin: calc(var(--navbar-height) + 8px) auto 8px;
+  z-index: 1000;
+  padding: 8px 12px;
+  background: var(--accent);
+  border-radius: 8px;
+  box-shadow: 0 6px 22px rgba(2,8,23,0.06);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: fit-content;
+  min-width: 96px;
+  max-width: 100%;
+  font-size: 13px;
+  min-height: var(--input-height);
+}
+.input-section label { font-size: 12px; font-weight:600; color:#fff; white-space:nowrap; margin:0; }
+.input-section .input-box {
+  padding:6px 8px; border-radius:6px; border:1px solid #d6d6d6; background:#fff;
+  width:112px; height:34px; font-size:13px; box-sizing:border-box;
+}
+/* Save button */
+#saveBtn { background: #ef4444; color: #fff; padding:8px 12px; border-radius:8px; border:none; cursor:pointer; }
+
+/* -------------------- MAIN / CENTERING -------------------- */
+/* center main content and cap width */
+.main-container {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 0 12px;
+  box-sizing: border-box;
+  width: 100%;
+  position: relative; /* anchor for absolute sidebar */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 12px;
+  overflow: visible;
+}
+
+/* -------------------- SIDEBAR (OVERLAY) -------------------- */
+.side-bar {
+  position: absolute;
+  top: calc(var(--navbar-height) + 12px);
+  left: max(8px, calc(50% - (var(--diagram-inner-max) / 2) - var(--sidebar-width) - var(--sidebar-offset)));
+  width: var(--sidebar-width);
+  min-width: 120px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.98);
+  box-shadow: 0 8px 24px rgba(2,6,23,0.06);
+  z-index: 1250;
+  pointer-events: auto;
+}
+.side-bar .sidebar-title { font-size:12px; color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:.6px; }
+.unit-btn {
+  width: 100%;
+  height: 44px;
+  display: inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding: 8px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(2,8,23,0.06);
+  background: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(2,6,23,0.04);
+}
+.unit-btn:hover { transform: translateY(-2px); transition: transform 160ms ease; }
+
+/* Hide sidebar on small viewports */
+@media (max-width: 980px) {
+  .side-bar { display: none; }
+}
+
+/* -------------------- MILLS GRID -------------------- */
+/* left label column + 6 flexible columns (one per bunker) */
+.mills-grid {
+  display: grid;
+  grid-template-columns: 150px repeat(6, 1fr);
+  gap: var(--mills-gap);
+  align-items: start;
+  padding: 6px 12px 12px;
+  width: 100%;
+  box-sizing: border-box;
+
+  /* use remaining vertical area; internal area can scroll */
+  max-height: calc(100vh - var(--navbar-height) - var(--input-height) - 24px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+/* thin, unobtrusive scrollbar (optional) */
+.mills-grid::-webkit-scrollbar { width: 9px; height: 9px; }
+.mills-grid::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 8px; }
+
+/* left headers */
+.mills-grid > .mill.coal-flow,
+.mills-grid > .mill.next-timer,
+.mills-grid > .mill.bunker-total {
+  grid-column: 1;
+  display:flex !important;
+  align-items:center;
+  justify-content:flex-start;
+  padding:6px 8px;
+  font-weight:700;
+  color:var(--muted);
+  font-size:13px;
+  height:36px;
+  gap:6px;
+}
+
+/* hide developer-only fields */
+.mills-grid .dropdown,
+.mills-grid .percentage-input,
+.mills-grid .gcv,
+.mills-grid .cost-head,
+.mills-grid .gcv-box,
+.mills-grid .cost-input,
+.mills-grid .aft-head,
+.mills-grid .aft,
+.mills-grid .next-blend-box,
+.mills-grid .mill.green,
+.mills-grid .mill[readonly] { display: none !important; }
+
+/* default hide then selectively show mills that contain inputs */
+.mills-grid > .mill { display: none !important; }
+.mills-grid > .mill.coal-flow { display:flex !important; padding-left:6px; }
+
+/* show columns that contain relevant inputs */
+.mills-grid > .mill:has(.flow-input),
+.mills-grid > .mill:has(.timer-input),
+.mills-grid > .mill:has(.total-input) {
+  display:flex !important;
+  align-items:center;
+  justify-content:flex-start;
+  padding:4px 6px !important;
+}
+
+/* place each data-mill into its column 2..7 */
+.mills-grid > .mill:has([data-mill="0"]) { grid-column: 2; }
+.mills-grid > .mill:has([data-mill="1"]) { grid-column: 3; }
+.mills-grid > .mill:has([data-mill="2"]) { grid-column: 4; }
+.mills-grid > .mill:has([data-mill="3"]) { grid-column: 5; }
+.mills-grid > .mill:has([data-mill="4"]) { grid-column: 6; }
+.mills-grid > .mill:has([data-mill="5"]) { grid-column: 7; }
+
+/* inputs: fill their cell (no fixed max width so they scale with column) */
+.flow-input,
+.timer-input,
+.next-blend-box,
+.total-input {
+  width: 100%;
+  max-width: none;
+  min-width: 56px;
+  padding: 6px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #e6e6e6;
+  font-size: 14px;
+  text-align: center;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+/* -------------------- DIAGRAM / BUNKERS -------------------- */
+/* diagram occupies the same 6 center columns and centers itself */
+.diagram-in-grid {
+  grid-column: 2 / span 6;
+  justify-self: center;
+  align-self: start;
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+}
+
+/* the white card inside the diagram; center it and cap width */
+.diagram-in-grid .layout {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 8px 30px rgba(2,8,23,0.06);
+  position: relative;
+  overflow: visible; /* so overlay + is never clipped */
+
+  /* control how big the white area becomes */
+  max-width: var(--diagram-inner-max);
+  width: 100%;
+  margin: 0 auto;
+
+  /* vertical sizing: make diagram big but not so large it pushes everything off-screen */
+  min-height: 180px;
+  height: min(640px, calc(var(--available-height) * 0.62));
+}
+
+/* bunkers grid inside the white card — matches the input columns (6) */
+.bunkers-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 18px;
+  align-items: end;
+  padding: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+/* each bunker cell centers its SVG; height clamped so it scales nicely */
+.bunker {
+  position: relative;
+  display:flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: clamp(100px, calc(var(--available-height) * 0.44), 420px);
+}
+
+/* SVG will scale to the cell width while maintaining aspect ratio.
+   78%/80% provides padding inside each cell so label/overlay have room. */
+.bunker svg {
+  width: 80%;
+  height: auto;
+  max-height: 380px;
+  display: block;
+}
+
+/* bunker label */
+.bunker .label {
+  position: absolute;
+  bottom: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  background: rgba(255,255,255,0.95);
+  padding: 6px 10px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  white-space: nowrap;
+}
+
+/* overlay + buttons — absolutely positioned by script */
+.top-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 1200; }
+.top-overlay .add-coal-overlay {
+  position: absolute;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  font-size: 22px;
+  background: #0ea5a4;
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.14);
+  transform: translate(-50%, var(--add-coal-translate-y));
+  cursor: pointer;
+  z-index: 1300;
+}
+
+/* hide per-bunker button (we use overlay buttons) */
+.bunker .add-coal-btn { display: none !important; }
+
+/* tooltip */
+.bunker .tooltip { display: none; position:absolute; bottom:100%; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.85); color:#fff; padding:8px 12px; border-radius:8px; font-size:13px; pointer-events:none; }
+.bunker:hover .tooltip { display:block; }
+
+/* top line & arrows */
+.top-line {
+  position: absolute;
+  top: var(--bunker-top-line-distance);
+  left: var(--line-left-offset);
+  right: var(--line-right-offset);
+  height: 2px;
+  background: #000;
+}
+.arrow {
+  position: absolute;
+  width: var(--arrow-width);
+  background: #000;
+  top: var(--bunker-top-line-distance);
+  height: var(--bunker-arrow-height);
+  transform-origin: top center;
+}
+.arrow::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - 7px);
+  top: 100%;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: var(--arrow-head-size) solid #000;
+}
+
+/* -------------------- POPUP / TOOLTIP -------------------- */
+.popup { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.35); z-index:1500; }
+.popup.hidden { display:none; }
+.popup-content {
+  background:#fff;
+  padding:18px;
+  border-radius:12px;
+  width:420px;
+  box-shadow:0 10px 40px rgba(2,6,23,0.18);
+}
+.popup-content h3 { margin:0 0 10px 0; font-size:18px; }
+.popup-row { display:flex; gap:12px; margin:10px 0; align-items:center; }
+.popup-row label { min-width:90px; font-size:14px; color:#444; }
+.popup-row select, .popup-row input { flex:1; padding:10px; border-radius:8px; border:1px solid #e6e6e6; font-size:15px; }
+.popup-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:14px; }
+.btn { padding:10px 14px; border-radius:8px; border:none; cursor:pointer; font-size:14px; }
+.btn-save { background:#0ea5a4; color:#fff; }
+.btn-cancel { background:#f3f4f6; }
+.btn-clear { background:#ef4444; color:#fff; }
+
+/* -------------------- RESPONSIVE -------------------- */
+@media (max-width: 1200px) {
+  :root { --diagram-inner-max: 900px; --page-max: 1100px; }
+  .main-container { padding: 0 10px; }
+  .bunker svg { max-height: 320px; }
+  .diagram-in-grid .layout { height: calc(var(--available-height) * 0.58); }
+}
+@media (max-width: 900px) {
+  :root { --page-max: 980px; --diagram-inner-max: 860px; }
+  .mills-grid { grid-template-columns: 140px repeat(6, 1fr); gap:10px; padding: 10px; }
+  .diagram-in-grid .layout { height: calc(var(--available-height) * 0.5); min-height:200px; }
+  .bunkers-grid { gap:12px; }
+  .bunker svg { width: 86%; max-height: 260px; }
+  .top-overlay .add-coal-overlay { width: 40px; height: 40px; font-size: 20px; }
+}
+@media (max-width: 600px) {
+  .mills-grid { grid-template-columns: 120px repeat(6, minmax(56px, 1fr)); gap:8px; padding: 8px; }
+  .diagram-in-grid { grid-column: 1 / -1; }
+  .diagram-in-grid .layout { max-width: 100%; height: calc(var(--available-height) * 0.46); min-height:160px; }
+  .bunkers-grid { grid-template-columns: repeat(3, 1fr); gap:10px; }
+  .bunker svg { width: 90%; max-height: 220px; }
+  .top-overlay .add-coal-overlay { width: 36px; height: 36px; font-size:18px; }
+}
+@media (max-width: 420px) {
+  :root { --input-height: 88px; }
+  .mills-grid { grid-template-columns: 110px repeat(6, minmax(48px, 1fr)); gap:6px; padding: 8px; }
+  .diagram-in-grid .layout { height: calc(var(--available-height) * 0.38); min-height:140px; }
+  .bunker svg { max-height: 160px; }
+  .input-section { flex-direction: column; width: calc(100% - 24px); margin: calc(var(--navbar-height) + 8px) 12px 8px; }
+}
+
+/* final safety: ensure no body scrollbars */
+html, body { overflow: hidden; }
+</style>
+<style>
+/* ---- Patch: convert filled bunker SVG shapes into outline-only lines ----
+   - Keeps arrows (.arrow, .top-line, pseudo-elements) unchanged
+   - Targets common SVG shapes inside each .bunker and forces no fill,
+     with a visible stroke to form the V-outline look.
+   - Tweak --bunker-outline-width to change line thickness.
+*/
+
+:root{
+  --bunker-outline-color: #000;     /* color of bunker outline */
+  --bunker-outline-width: 3px;      /* thickness of bunker outline lines */
+  --bunker-inner-gap-fade: rgba(0,0,0,0.06); /* optional subtle inner shadow if needed */
+}
+
+/* Ensure any filled shapes inside .bunker SVGs become stroked outlines */
+.bunker svg, .bunker svg * {
+  fill: none !important;                     /* remove fills */
+  stroke: var(--bunker-outline-color) !important;   /* draw outline */
+  stroke-width: var(--bunker-outline-width) !important;
+  stroke-linejoin: round !important;
+  stroke-linecap: round !important;
+  vector-effect: non-scaling-stroke !important; /* keep stroke width consistent while scaling */
+}
+
+/* If the bunker SVG uses groups (<g>) with stroke applied, ensure children inherit */
+.bunker svg g { stroke: var(--bunker-outline-color) !important; }
+
+/* If there are decorative fills you still want (e.g. circular '+'), allow explicit keep:
+   (Remove this block if your plus buttons are drawn inside the same SVG and you want them stroked)
+   Example: keep any element with class `.keep-fill` filled (useful for overlay icons inside SVGs) */
+.bunker svg .keep-fill { fill: currentColor !important; stroke: none !important; }
+
+/* Keep the horizontal top-line as just a hairline (no filled rectangle) */
+.top-line {
+  background: transparent !important;
+  height: 0 !important;
+  border-top: 2px solid var(--bunker-outline-color);
+  pointer-events: none;
+}
+
+/* If your arrows use a black filled shaft that you *do* want to remain filled,
+   the above rules won't affect elements outside .bunker (e.g., .arrow). If arrows exist inside
+   the same SVG and you want them unchanged, add class="arrow-shaft" to them and exempt below: */
+.bunker svg .arrow-shaft,
+.bunker svg .arrow-head { 
+  fill: #000 !important; 
+  stroke: none !important;
+}
+
+/* Optional: slightly soften outline near the top junction for a hand-drawn look
+   (uncomment if you want subtle fade at the top of the V) */
+/*
+.bunker svg path, .bunker svg polygon {
+  filter: drop-shadow(0 2px 6px var(--bunker-inner-gap-fade));
+}
+*/
+</style>
+</head>
+<body>
+
+  <!-- Navbar (kept but visually hidden in original) -->
+  <div class="navbar hidden-dom" aria-hidden="true">
+    <img src="/public/images/abhitech-logo.png" alt="Logo">
+    <h1>COAL BLENDING RATIO</h1>
+    <div class="nav-buttons">
+      <button onclick="window.location.href='/public/coals.html'">Go to Coals Page</button>
+      <button class="logout-btn" onclick="logoutUser()">Logout</button>
+    </div>
+  </div>
+
+  <!-- Input section -->
+  <div class="input-section" role="region" aria-label="Bunker inputs">
+    <label for="bunkerCapacity">Bunker Capacity (tons):</label>
+    <input id="bunkerCapacity" class="input-box" type="number" placeholder="Enter bunker capacity" />
+    <label for="generation">Generation (MW):</label>
+    <input id="generation" class="input-box" type="number" placeholder="Enter generation value" />
+    <div style="display:flex; gap:8px; justify-content:center; margin-top:6px;">
+      <button id="saveBtn" class="upload-btn">Submit</button>
+    </div>
+  </div>
+
+  <!-- MAIN CONTAINER (centered content) -->
+  <div class="main-container">
+
+    <!-- Sidebar is absolutely positioned overlay — removed from normal flow so it doesn't shift layout -->
+    <aside class="side-bar" aria-label="Units sidebar">
+      <div class="sidebar-title">Units</div>
+      <button class="unit-btn" type="button" aria-pressed="false">Unit 1</button>
+      <button class="unit-btn" type="button" aria-pressed="false">Unit 2</button>
+      <button class="unit-btn" type="button" aria-pressed="false">Unit 3</button>
+    </aside>
+
+    <!-- mills-grid (centered content) -->
+    <div class="mills-grid" id="millsGrid">
+      <div class="hidden-dom" aria-hidden="true"></div>
+      <div class="mill green hidden-dom" aria-hidden="true">BUNKER 1</div>
+      <div class="mill green hidden-dom" aria-hidden="true">BUNKER 2</div>
+      <div class="mill green hidden-dom" aria-hidden="true">BUNKER 3</div>
+      <div class="mill green hidden-dom" aria-hidden="true">BUNKER 4</div>
+      <div class="mill green hidden-dom" aria-hidden="true">BUNKER 5</div>
+      <div class="mill green hidden-dom" aria-hidden="true">BUNKER 6</div>
+
+      <!-- (kept the full original structure; trimmed here for brevity in the example) -->
+      <div class="mill">
+        <select class="dropdown" id="coalName1"><option value="">Select coal</option></select>
+      </div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="0" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="1" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="2" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="3" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="4" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="5" placeholder="%"></div>
+
+      <div class="hidden-dom" aria-hidden="true"></div>
+
+      <div class="diagram-in-grid" style="padding:8px;">
+        <div class="layout">
+          <div class="top-overlay" aria-hidden="true">
+            <div class="top-line"></div>
+            <div class="arrow" style="left:9.3333%;"></div>
+            <div class="arrow" style="left:26%;"></div>
+            <div class="arrow" style="left:41.6667%;"></div>
+            <div class="arrow" style="left:58.3333%;"></div>
+            <div class="arrow" style="left:75%;"></div>
+            <div class="arrow" style="left:91.6667%;"></div>
+          </div>
+
+        <div class="bunkers-grid">
+          <!-- six bunkers (visible and enlarged) -->
+          <div class="bunker" data-bunker="0">
+            <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet">
+              <path d="M10 10 V100 L45 140 M55 140 L90 100 V10" />
+            </svg>
+            <div class="label">Bunker 1</div>
+            <button class="add-coal-btn" onclick="openCoalPopup(0)">+</button>
+          </div>
+
+          <div class="bunker" data-bunker="1">
+            <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet">
+              <path d="M10 10 V100 L45 140 M55 140 L90 100 V10" />
+            </svg>
+            <div class="label">Bunker 2</div>
+            <button class="add-coal-btn" onclick="openCoalPopup(1)">+</button>
+          </div>
+
+          <div class="bunker" data-bunker="2">
+            <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet">
+              <path d="M10 10 V100 L45 140 M55 140 L90 100 V10" />
+            </svg>
+            <div class="label">Bunker 3</div>
+            <button class="add-coal-btn" onclick="openCoalPopup(2)">+</button>
+          </div>
+
+          <div class="bunker" data-bunker="3">
+            <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet">
+              <path d="M10 10 V100 L45 140 M55 140 L90 100 V10" />
+            </svg>
+            <div class="label">Bunker 4</div>
+            <button class="add-coal-btn" onclick="openCoalPopup(3)">+</button>
+          </div>
+
+          <div class="bunker" data-bunker="4">
+            <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet">
+              <path d="M10 10 V100 L45 140 M55 140 L90 100 V10" />
+            </svg>
+            <div class="label">Bunker 5</div>
+            <button class="add-coal-btn" onclick="openCoalPopup(4)">+</button>
+          </div>
+
+          <div class="bunker" data-bunker="5">
+            <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet">
+              <path d="M10 10 V100 L45 140 M55 140 L90 100 V10" />
+            </svg>
+            <div class="label">Bunker 6</div>
+            <button class="add-coal-btn" onclick="openCoalPopup(5)">+</button>
+          </div>
+        </div>
+        </div>
+      </div>
+
+      <!-- Coal Flow row -->
+      <div class="mill coal-flow">Coal Flow(TPH)</div>
+      <div class="mill"><input type="text" class="flow-input" data-mill="0" placeholder="TPH"></div>
+      <div class="mill"><input type="text" class="flow-input" data-mill="1" placeholder="TPH"></div>
+      <div class="mill"><input type="text" class="flow-input" data-mill="2" placeholder="TPH"></div>
+      <div class="mill"><input type="text" class="flow-input" data-mill="3" placeholder="TPH"></div>
+      <div class="mill"><input type="text" class="flow-input" data-mill="4" placeholder="TPH"></div>
+      <div class="mill"><input type="text" class="flow-input" data-mill="5" placeholder="TPH"></div>
+
+      <!-- Next Timer row -->
+      <div class="mill next-timer">Next timer</div>
+      <div class="mill"><input id="nextTimer0" type="text" class="flow-input timers-input" data-mill="0" placeholder="hh:mm:ss" readonly></div>
+      <div class="mill"><input id="nextTimer1" type="text" class="flow-input timers-input" data-mill="1" placeholder="hh:mm:ss" readonly></div>
+      <div class="mill"><input id="nextTimer2" type="text" class="flow-input timers-input" data-mill="2" placeholder="hh:mm:ss" readonly></div>
+      <div class="mill"><input id="nextTimer3" type="text" class="flow-input timers-input" data-mill="3" placeholder="hh:mm:ss" readonly></div>
+      <div class="mill"><input id="nextTimer4" type="text" class="flow-input timers-input" data-mill="4" placeholder="hh:mm:ss" readonly></div>
+      <div class="mill"><input id="nextTimer5" type="text" class="flow-input timers-input" data-mill="5" placeholder="hh:mm:ss" readonly></div>
+
+      <!-- Bunker totals -->
+      <div class="mill bunker-total">Bunker Total</div>
+      <div class="mill"><input type="text" class="flow-input total-inputs" data-mill="0" placeholder="TPH"></div>
+      <div class="mill"><input type="text" class="flow-input total-inputs" data-mill="1" placeholder="TPH"></div>
+      <div class="mill"><input type="text" class="flow-input total-inputs" data-mill="2" placeholder="TPH"></div>
+      <div class="mill"><input type="text" class="flow-input total-inputs" data-mill="3" placeholder="TPH"></div>
+      <div class="mill"><input type="text" class="flow-input total-inputs" data-mill="4" placeholder="TPH"></div>
+      <div class="mill"><input type="text" class="flow-input total-inputs" data-mill="5" placeholder="TPH"></div>
+
+    </div><!-- .mills-grid -->
+  </div><!-- .main-container -->
+
+  <!-- Popup -->
+  <div id="coalPopup" class="popup hidden" aria-hidden="true">
+    <div class="popup-content" role="dialog" aria-modal="true">
+      <h3>Add coal to bunker</h3>
+      <div class="popup-row">
+        <label for="popupCoal">Coal</label>
+        <select id="popupCoal"><option>Loading…</option></select>
+      </div>
+      <div class="popup-row">
+        <label for="popupPercent">Tonnage (tons)</label>
+        <input id="popupPercent" type="number" min="0" step="any" placeholder="Enter tons (e.g. 300)" />
+      </div>
+      <div class="popup-actions">
+        <button class="btn btn-clear" id="clearLastBtn">Clear last</button>
+        <button class="btn btn-cancel" id="cancelPopup">Cancel</button>
+        <button class="btn btn-save" id="savePopup">Save</button>
+      </div>
+      <input type="hidden" id="popupBunkerIndex" value="">
+    </div>
+  </div>
+
+<script>
+  // inert visual toggles for unit buttons
+  document.querySelectorAll('.unit-btn').forEach(btn=>{
+    btn.addEventListener('click', () => {
+      btn.classList.toggle('active');
+      btn.setAttribute('aria-pressed', String(btn.classList.contains('active')));
+    });
+  });
+
+  // Keep --available-height tuned to actual viewport so layout fits
+  function tuneHeights(){
+    const avail = Math.max(320, window.innerHeight - (65 + 72) - 40);
+    document.documentElement.style.setProperty('--available-height', avail + 'px');
+  }
+  window.addEventListener('resize', tuneHeights);
+  tuneHeights();
+</script>
+
+</body>
+</html>
+
+
+<!-- <style>
+/* ================ Adjusted Stylesheet
+   - Sidebar width reduced
+   - Bunker diagram keeps only the horizontal top-line (arrows removed)
+   ================================================================ */
+
+/* -------------------- Core variables & base -------------------- */
+:root{
+  --bg: #F7F8FA;
+  --card: #fff;
+  --muted: #6b7280;
+  --accent: #02008a;
+
+  --navbar-height: 65px;
+  --input-height: 72px;
+
+  /* available vertical area for diagram/mills */
+  --available-height: calc(100vh - var(--navbar-height) - var(--input-height) - 40px);
+
+  /* layout tuning knobs */
+  --mills-gap: 12px;
+  --page-max: 1800px;
+  --diagram-inner-max: 1600px;
+
+  /* *** Reduced Sidebar Width *** */
+  --sidebar-width: 160px;     /* reduced from 220px */
+  --sidebar-offset: 8px;
+
+  --bunker-top-line-distance: 30px;
+  /* keep arrows unused (we only want the line) */
+  --bunker-arrow-height: 0px;
+  --line-left-offset: 4%;
+  --line-right-offset: 8.2%;
+  --arrow-width: 2px;
+  --arrow-head-size: 0px;
+
+  --add-coal-translate-y: -40%;
+}
+
+/* Box sizing & base text */
+*, *::before, *::after { box-sizing: border-box; }
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: #111;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: Inter, system-ui, Arial, Helvetica, sans-serif;
+
+  /* avoid page scroll; allow internal panels to scroll if needed */
+  overflow: hidden;
+}
+
+/* Hide dev helpers if present */
+#loader, #downloadPDF, .summary-table, #summaryHidden { display: none !important; }
+
+/* -------------------- NAVBAR -------------------- */
+.navbar {
+  width: 100%;
+  background-color: #f7f8fa;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  position: fixed;
+  top: 0;
+  left: 0;
+  height: var(--navbar-height);
+  z-index: 1100;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.06);
+}
+.navbar img { max-height: calc(var(--navbar-height) - 10px); object-fit: contain; }
+.navbar h1 { margin: 0 12px; font-size: 20px; color: #000; font-weight:700; }
+.nav-buttons { display:flex; gap:10px; align-items:center; margin-right:8px; }
+.navbar button {
+  padding: 10px 15px;
+  background-color: var(--accent);
+  color: #fff;
+  border: none;
+  cursor: pointer;
+  border-radius: 6px;
+  font-weight: 700;
+}
+.navbar button:hover { background-color: #001cbb; }
+
+/* -------------------- INPUT SECTION -------------------- */
+.input-section {
+  position: relative;
+  margin: calc(var(--navbar-height) + 8px) auto 8px;
+  z-index: 1000;
+  padding: 8px 12px;
+  background: var(--accent);
+  border-radius: 8px;
+  box-shadow: 0 6px 22px rgba(2,8,23,0.06);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: fit-content;
+  min-width: 96px;
+  max-width: 100%;
+  font-size: 13px;
+  min-height: var(--input-height);
+}
+.input-section label { font-size: 12px; font-weight:600; color:#fff; white-space:nowrap; margin:0; }
+.input-section .input-box {
+  padding:6px 8px; border-radius:6px; border:1px solid #d6d6d6; background:#fff;
+  width:112px; height:34px; font-size:13px; box-sizing:border-box;
+}
+/* Save button */
+#saveBtn { background: #ef4444; color: #fff; padding:8px 12px; border-radius:8px; border:none; cursor:pointer; }
+
+/* -------------------- MAIN / CENTERING -------------------- */
+.main-container {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 0 12px;
+  box-sizing: border-box;
+  width: 100%;
+  position: relative; /* anchor for absolute sidebar */
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 12px;
+  overflow: visible;
+}
+
+/* -------------------- SIDEBAR (OVERLAY) -------------------- */
+.side-bar {
+  position: absolute;
+  top: calc(var(--navbar-height) + 12px);
+  left: max(8px, calc(50% - (var(--diagram-inner-max) / 2) - var(--sidebar-width) - var(--sidebar-offset)));
+  width: var(--sidebar-width);
+  min-width: 120px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  border-radius: 10px;
+  background: rgba(255,255,255,0.98);
+  box-shadow: 0 8px 24px rgba(2,6,23,0.06);
+  z-index: 1250;
+  pointer-events: auto;
+}
+.side-bar .sidebar-title { font-size:12px; color:var(--muted); font-weight:800; text-transform:uppercase; letter-spacing:.6px; }
+.unit-btn {
+  width: 100%;
+  height: 44px;
+  display: inline-flex;
+  align-items:center;
+  justify-content:center;
+  padding: 8px 6px;
+  border-radius: 10px;
+  border: 1px solid rgba(2,8,23,0.06);
+  background: #fff;
+  font-weight: 800;
+  font-size: 13px;
+  cursor: pointer;
+  box-shadow: 0 6px 14px rgba(2,6,23,0.04);
+}
+.unit-btn:hover { transform: translateY(-2px); transition: transform 160ms ease; }
+
+/* Hide sidebar on small viewports */
+@media (max-width: 980px) {
+  .side-bar { display: none; }
+}
+
+/* -------------------- MILLS GRID -------------------- */
+.mills-grid {
+  display: grid;
+  grid-template-columns: 150px repeat(6, 1fr);
+  gap: var(--mills-gap);
+  align-items: start;
+  padding: 6px 12px 12px;
+  width: 100%;
+  box-sizing: border-box;
+
+  /* use remaining vertical area; internal area can scroll */
+  max-height: calc(100vh - var(--navbar-height) - var(--input-height) - 24px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.mills-grid::-webkit-scrollbar { width: 9px; height: 9px; }
+.mills-grid::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 8px; }
+
+/* left headers */
+.mills-grid > .mill.coal-flow,
+.mills-grid > .mill.next-timer,
+.mills-grid > .mill.bunker-total {
+  grid-column: 1;
+  display:flex !important;
+  align-items:center;
+  justify-content:flex-start;
+  padding:6px 8px;
+  font-weight:700;
+  color:var(--muted);
+  font-size:13px;
+  height:36px;
+  gap:6px;
+}
+
+/* hide developer-only fields */
+.mills-grid .dropdown,
+.mills-grid .percentage-input,
+.mills-grid .gcv,
+.mills-grid .cost-head,
+.mills-grid .gcv-box,
+.mills-grid .cost-input,
+.mills-grid .aft-head,
+.mills-grid .aft,
+.mills-grid .next-blend-box,
+.mills-grid .mill.green,
+.mills-grid .mill[readonly] { display: none !important; }
+
+/* default hide then selectively show mills that contain inputs */
+.mills-grid > .mill { display: none !important; }
+.mills-grid > .mill.coal-flow { display:flex !important; padding-left:6px; }
+
+/* show columns that contain relevant inputs */
+.mills-grid > .mill:has(.flow-input),
+.mills-grid > .mill:has(.timer-input),
+.mills-grid > .mill:has(.total-input) {
+  display:flex !important;
+  align-items:center;
+  justify-content:flex-start;
+  padding:4px 6px !important;
+}
+
+/* place each data-mill into its column 2..7 */
+.mills-grid > .mill:has([data-mill="0"]) { grid-column: 2; }
+.mills-grid > .mill:has([data-mill="1"]) { grid-column: 3; }
+.mills-grid > .mill:has([data-mill="2"]) { grid-column: 4; }
+.mills-grid > .mill:has([data-mill="3"]) { grid-column: 5; }
+.mills-grid > .mill:has([data-mill="4"]) { grid-column: 6; }
+.mills-grid > .mill:has([data-mill="5"]) { grid-column: 7; }
+
+/* inputs: fill their cell (no fixed max width so they scale with column) */
+.flow-input,
+.timer-input,
+.next-blend-box,
+.total-input {
+  width: 100%;
+  max-width: none;
+  min-width: 56px;
+  padding: 6px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #e6e6e6;
+  font-size: 14px;
+  text-align: center;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+/* -------------------- DIAGRAM / BUNKERS -------------------- */
+.diagram-in-grid {
+  grid-column: 2 / span 6;
+  justify-self: center;
+  align-self: start;
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+}
+.diagram-in-grid .layout {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 8px 30px rgba(2,8,23,0.06);
+  position: relative;
+  overflow: visible; /* so overlay + is never clipped */
+
+  max-width: var(--diagram-inner-max);
+  width: 100%;
+  margin: 0 auto;
+
+  min-height: 180px;
+  height: min(640px, calc(var(--available-height) * 0.62));
+}
+.bunkers-grid {
+  display: grid;
+  grid-template-columns: repeat(6, 1fr);
+  gap: 18px;
+  align-items: end;
+  padding: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.bunker {
+  position: relative;
+  display:flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: clamp(100px, calc(var(--available-height) * 0.44), 420px);
+}
+.bunker svg {
+  width: 80%;
+  height: auto;
+  max-height: 380px;
+  display: block;
+}
+.bunker .label {
+  position: absolute;
+  bottom: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  background: rgba(255,255,255,0.95);
+  padding: 6px 10px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  white-space: nowrap;
+}
+
+/* overlay + buttons — absolutely positioned by script */
+.top-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 1200; }
+.top-overlay .add-coal-overlay {
+  position: absolute;
+  pointer-events: auto;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 44px;
+  height: 44px;
+  border-radius: 50%;
+  border: none;
+  font-size: 22px;
+  background: #0ea5a4;
+  color: #fff;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.14);
+  transform: translate(-50%, var(--add-coal-translate-y));
+  cursor: pointer;
+  z-index: 1300;
+}
+/* hide per-bunker button (we use overlay buttons) */
+.bunker .add-coal-btn { display: none !important; }
+
+/* tooltip */
+.bunker .tooltip { display: none; position:absolute; bottom:100%; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.85); color:#fff; padding:8px 12px; border-radius:8px; font-size:13px; pointer-events:none; }
+.bunker:hover .tooltip { display:block; }
+
+/* -------------------- TOP-LINE ONLY (ARROWS REMOVED) -------------------- */
+/* keep only the horizontal top-line; hide arrow elements to avoid the triangle look */
+.top-line {
+  position: absolute;
+  top: var(--bunker-top-line-distance);
+  left: var(--line-left-offset);
+  right: var(--line-right-offset);
+  height: 2px;
+  background: #000;
+  z-index: 1100;
+}
+.arrow {
+  display: none !important; /* arrows hidden so only the horizontal line shows */
+}
+.arrow::after { display: none !important; }
+
+/* -------------------- POPUP / TOOLTIP -------------------- */
+.popup { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.35); z-index:1500; }
+.popup.hidden { display:none; }
+.popup-content {
+  background:#fff;
+  padding:18px;
+  border-radius:12px;
+  width:420px;
+  box-shadow:0 10px 40px rgba(2,6,23,0.18);
+}
+.popup-content h3 { margin:0 0 10px 0; font-size:18px; }
+.popup-row { display:flex; gap:12px; margin:10px 0; align-items:center; }
+.popup-row label { min-width:90px; font-size:14px; color:#444; }
+.popup-row select, .popup-row input { flex:1; padding:10px; border-radius:8px; border:1px solid #e6e6e6; font-size:15px; }
+.popup-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:14px; }
+.btn { padding:10px 14px; border-radius:8px; border:none; cursor:pointer; font-size:14px; }
+.btn-save { background:#0ea5a4; color:#fff; }
+.btn-cancel { background:#f3f4f6; }
+.btn-clear { background:#ef4444; color:#fff; }
+
+/* -------------------- RESPONSIVE -------------------- */
+@media (max-width: 1200px) {
+  :root { --diagram-inner-max: 900px; --page-max: 1100px; }
+  .main-container { padding: 0 10px; }
+  .bunker svg { max-height: 320px; }
+  .diagram-in-grid .layout { height: calc(var(--available-height) * 0.58); }
+}
+@media (max-width: 900px) {
+  :root { --page-max: 980px; --diagram-inner-max: 860px; }
+  .mills-grid { grid-template-columns: 140px repeat(6, 1fr); gap:10px; padding: 10px; }
+  .diagram-in-grid .layout { height: calc(var(--available-height) * 0.5); min-height:200px; }
+  .bunkers-grid { gap:12px; }
+  .bunker svg { width: 86%; max-height: 260px; }
+  .top-overlay .add-coal-overlay { width: 40px; height: 40px; font-size: 20px; }
+}
+@media (max-width: 600px) {
+  .mills-grid { grid-template-columns: 120px repeat(6, minmax(56px, 1fr)); gap:8px; padding: 8px; }
+  .diagram-in-grid { grid-column: 1 / -1; }
+  .diagram-in-grid .layout { max-width: 100%; height: calc(var(--available-height) * 0.46); min-height:160px; }
+  .bunkers-grid { grid-template-columns: repeat(3, 1fr); gap:10px; }
+  .bunker svg { width: 90%; max-height: 220px; }
+  .top-overlay .add-coal-overlay { width: 36px; height: 36px; font-size:18px; }
+}
+@media (max-width: 420px) {
+  :root { --input-height: 88px; }
+  .mills-grid { grid-template-columns: 110px repeat(6, minmax(48px, 1fr)); gap:6px; padding: 8px; }
+  .diagram-in-grid .layout { height: calc(var(--available-height) * 0.38); min-height:140px; }
+  .bunker svg { max-height: 160px; }
+  .input-section { flex-direction: column; width: calc(100% - 24px); margin: calc(var(--navbar-height) + 8px) 12px 8px; }
+}
+
+/* final safety: ensure no body scrollbars */
+html, body { overflow: hidden; }
+</style> -->
+
+<style>
+/* ---- Patch: convert filled bunker SVG shapes into outline-only lines ----
+   - Keeps arrows (.arrow, .top-line, pseudo-elements) unchanged
+   - Targets common SVG shapes inside each .bunker and forces no fill,
+     with a visible stroke to form the V-outline look.
+   - Tweak --bunker-outline-width to change line thickness.
+*/
+
+:root{
+  --bunker-outline-color: #000;     /* color of bunker outline */
+  --bunker-outline-width: 3px;      /* thickness of bunker outline lines */
+  --bunker-inner-gap-fade: rgba(0,0,0,0.06); /* optional subtle inner shadow if needed */
+}
+
+/* Ensure any filled shapes inside .bunker SVGs become stroked outlines */
+.bunker svg, .bunker svg * {
+  fill: none !important;                     /* remove fills */
+  stroke: var(--bunker-outline-color) !important;   /* draw outline */
+  stroke-width: var(--bunker-outline-width) !important;
+  stroke-linejoin: round !important;
+  stroke-linecap: round !important;
+  vector-effect: non-scaling-stroke !important; /* keep stroke width consistent while scaling */
+}
+
+/* If the bunker SVG uses groups (<g>) with stroke applied, ensure children inherit */
+.bunker svg g { stroke: var(--bunker-outline-color) !important; }
+
+/* If there are decorative fills you still want (e.g. circular '+'), allow explicit keep:
+   (Remove this block if your plus buttons are drawn inside the same SVG and you want them stroked)
+   Example: keep any element with class `.keep-fill` filled (useful for overlay icons inside SVGs) */
+.bunker svg .keep-fill { fill: currentColor !important; stroke: none !important; }
+
+/* Keep the horizontal top-line as just a hairline (no filled rectangle) */
+.top-line {
+  background: transparent !important;
+  height: 0 !important;
+  border-top: 2px solid var(--bunker-outline-color);
+  pointer-events: none;
+}
+
+/* If your arrows use a black filled shaft that you *do* want to remain filled,
+   the above rules won't affect elements outside .bunker (e.g., .arrow). If arrows exist inside
+   the same SVG and you want them unchanged, add class="arrow-shaft" to them and exempt below: */
+.bunker svg .arrow-shaft,
+.bunker svg .arrow-head { 
+  fill: #000 !important; 
+  stroke: none !important;
+}
+
+/* Optional: slightly soften outline near the top junction for a hand-drawn look
+   (uncomment if you want subtle fade at the top of the V) */
+/*
+.bunker svg path, .bunker svg polygon {
+  filter: drop-shadow(0 2px 6px var(--bunker-inner-gap-fade));
+}
+*/
+</style>
+
+

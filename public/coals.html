@@ -1,0 +1,451 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width,initial-scale=1" />
+<title>Coal Data — Viewer</title>
+<style>
+  :root{
+    --navbar-height:76px;
+    --accent:#02008a;
+    --bg:#f5f7fb;
+  }
+  html,body{height:100%}
+  body{
+    font-family: system-ui,-apple-system,Segoe UI,Roboto,Ubuntu,'Helvetica Neue',Arial;
+    margin:0;
+    background:var(--bg);
+    color:#111;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+  }
+
+  /* Navbar (fixed) */
+  .navbar {
+    width:100%;
+    background:linear-gradient(180deg,#ffffff,#f7f8fa);
+    display:flex;
+    align-items:center;
+    justify-content:space-between;
+    gap:12px;
+    padding:10px 20px;
+    position:fixed;
+    top:0;
+    left:0;
+    height:var(--navbar-height);
+    box-shadow:0 6px 22px rgba(11,18,40,0.06);
+    z-index:1400;
+    box-sizing:border-box;
+  }
+
+  /* Left: logo + title */
+  .nav-left {
+    display:flex;
+    gap:12px;
+    align-items:center;
+    min-width:0; /* allow title to truncate on small screens */
+  }
+  .navbar img {
+    height:44px;               /* controlled logo size */
+    width:auto;
+    object-fit:contain;
+    display:block;
+  }
+  .navbar h1 {
+    margin:0;
+    font-size:18px;
+    letter-spacing:0.2px;
+    font-weight:700;
+    color:#0b1530;
+    white-space:nowrap;
+    text-overflow:ellipsis;
+    overflow:hidden;
+    max-width:520px;
+  }
+
+  /* Right: action buttons */
+  .nav-buttons {
+    display:flex;
+    gap:10px;
+    align-items:center;
+    margin-left:auto;
+  }
+  .nav-buttons button {
+    background:var(--accent);
+    color:#fff;
+    border:none;
+    padding:9px 12px;
+    border-radius:8px;
+    cursor:pointer;
+    font-weight:700;
+  }
+  .nav-buttons button.secondary {
+    background:#02008a;
+    color:white;
+    border:1px solid rgba(2,0,138,0.08);
+  }
+  .nav-buttons button:focus { outline:2px solid rgba(2,0,138,0.12); outline-offset:2px; }
+
+  .nav-buttons .logout{
+    background: red;
+  }
+
+  /* responsive navbar: stack buttons on small widths */
+  @media (max-width:640px){
+    .navbar { padding:10px 12px; height: auto; align-items:flex-start; gap:8px; }
+    .nav-left { width:100%; }
+    .nav-buttons { width:100%; justify-content:flex-end; flex-wrap:wrap; gap:8px; }
+    .navbar h1 { font-size:16px; }
+  }
+
+  /* page content spacing so navbar doesn't overlap */
+  main.page {
+    padding: calc(var(--navbar-height) + 18px) 20px 40px;
+    max-width:1200px;
+    margin:0 auto;
+    box-sizing:border-box;
+  }
+
+  .top-row { display:flex; gap:12px; align-items:center; margin-bottom:16px; flex-wrap:wrap; }
+  h2{ margin:0 0 4px 0; font-size:16px; }
+  .controls{ display:flex; gap:8px; align-items:center; flex-wrap:wrap; width:100%; margin-bottom:8px; }
+  input.search{ padding:10px 12px; width:320px; border-radius:8px; border:1px solid #e6e9ef; background:#fff; box-shadow:0 1px 0 rgba(0,0,0,0.02) inset; }
+  button.btn{ padding:9px 12px; border-radius:8px; border:1px solid #e0e6ff; background:#fff; cursor:pointer; color:#0b1530; font-weight:600; }
+  button.btn.primary{ background:var(--accent); color:#fff; border:none; }
+  button#export{ background:#fff; border:1px solid #e6e9ef; }
+
+  .status { margin-left:6px; color:#666; font-size:13px; }
+
+  .table-wrap{
+    margin-top:6px;
+    border-radius:10px;
+    overflow:auto;
+    background:linear-gradient(180deg,#ffffff,#fbfdff);
+    border:1px solid rgba(12,18,40,0.04);
+    box-shadow: 0 8px 30px rgba(12,18,40,0.03);
+    max-height:66vh;
+  }
+
+  table{ width:100%; border-collapse:collapse; min-width:900px; }
+  thead th{
+    position:sticky; top:0; background:linear-gradient(180deg,#fafbff,#ffffff);
+    z-index:5; padding:10px 12px; text-align:left; font-size:13px; color:#334155;
+    border-bottom:1px solid rgba(2,6,23,0.06);
+  }
+  tbody td{ padding:10px 12px; border-bottom:1px solid #f3f6fb; font-size:13px; color:#0b1530 }
+  tbody tr:hover{ background:linear-gradient(90deg, rgba(2,0,138,0.02), rgba(2,0,138,0.01)); }
+
+  .paging{ display:flex; gap:10px; align-items:center; margin-top:10px; }
+  .pager-info{ color:#666; font-size:13px; }
+
+  .badge { display:inline-block; padding:6px 10px; border-radius:999px; background:#f2f7ff; color:var(--accent); font-weight:700; font-size:12px; }
+
+  /* empty / error */
+  .empty{ padding:28px; text-align:center; color:#6b7280; }
+
+  /* small screens: make table horizontally scroll */
+  @media (max-width:900px) {
+    table{ min-width:720px; }
+    input.search{ width:100%; max-width:320px; }
+  }
+
+</style>
+  <script>
+     if(localStorage.getItem('isLoggedIn') !== 'true') {
+    alert('You must login first!');
+    window.location.href = '/public/login.html'; 
+} else {
+    document.body.style.display = 'block';
+}
+    function logoutUser() {
+  localStorage.setItem('isLoggedIn', 'false'); 
+  window.location.href = '/public/login.html'; 
+}
+
+  </script>
+</head>
+<body>
+
+  <div class="navbar" role="navigation" aria-label="Main navigation">
+    <div class="nav-left">
+      <img src="/public/images/abhitech-logo.png" alt="Company Logo" onerror="this.style.display='none'">
+      <h1>COAL BLENDING RATIO — Coals</h1>
+    </div>
+
+    <div class="nav-buttons" role="toolbar" aria-label="Top actions">
+      <button class="secondary" onclick="window.location.href='/public/input.html'">Go to Input</button>
+      <button class="logout" onclick="logoutUser()">Logout</button>
+    </div>
+  </div>
+
+  <main class="page" role="main">
+    <div class="top-row">
+      <div style="flex:1 1 420px">
+        <h2>Coal list</h2>
+        <div style="color:#55606f;font-size:13px">View, search and export coal records fetched from your backend</div>
+      </div>
+
+      <div style="display:flex;gap:8px;align-items:center">
+        <span class="badge" id="recordsBadge">—</span>
+      </div>
+    </div>
+
+    <div class="controls">
+      <input id="search" class="search" placeholder="Search by coal name, GCV, cost or oxide..." />
+      <button id="refresh" class="btn">Refresh</button>
+      <button id="export" class="btn">Export CSV</button>
+      <div class="status" id="status">Waiting</div>
+    </div>
+
+    <div class="table-wrap" id="tableWrap" role="region" aria-labelledby="tableTitle">
+      <table id="tbl" aria-describedby="status">
+        <thead>
+          <tr>
+            <th style="width:56px">#</th>
+            <th>Coal</th>
+            <th>GCV</th>
+            <th>Cost</th>
+            <th>SiO2</th>
+            <th>Al2O3</th>
+            <th>Fe2O3</th>
+            <th>CaO</th>
+            <th>MgO</th>
+            <th>Na2O</th>
+            <th>K2O</th>
+            <th>SO3</th>
+          </tr>
+        </thead>
+        <tbody></tbody>
+      </table>
+      <div id="emptyHint" class="empty" style="display:none">No data to display. Click <button class="btn" id="tryEndpoints">Check endpoints</button> or press Refresh.</div>
+    </div>
+
+    <div class="paging" style="margin-top:12px">
+      <button id="prev" class="btn">Prev</button>
+      <div class="pager-info" id="pageinfo">1 / 1</div>
+      <button id="next" class="btn">Next</button>
+      <div style="flex:1"></div>
+      <div style="color:#666;font-size:13px">Endpoint tried: <span id="endpointUsed">—</span></div>
+    </div>
+  </main>
+
+<script>
+(async function(){
+  const ENDPOINTS = [
+    () => (window.COAL_DB && Array.isArray(window.COAL_DB) && window.COAL_DB.length) ? { type: 'inline', url: 'window.COAL_DB' } : null,
+    '/api/coals',
+    '/coals',
+    '/api/coal',
+    '/coal',
+    '/api/coal/list'
+  ].filter(Boolean);
+
+  const PAGE_SIZE = 10;
+  const $search = document.getElementById('search');
+  const $refresh = document.getElementById('refresh');
+  const $export = document.getElementById('export');
+  const $status = document.getElementById('status');
+  const $tbody = document.querySelector('#tbl tbody');
+  const $prev = document.getElementById('prev'), $next = document.getElementById('next'), $info = document.getElementById('pageinfo');
+  const $endpointUsed = document.getElementById('endpointUsed');
+  const $recordsBadge = document.getElementById('recordsBadge');
+  const $emptyHint = document.getElementById('emptyHint');
+  const $tryEndpoints = document.getElementById('tryEndpoints');
+
+  let raw = [], filtered = [], page = 1, pages = 1;
+  let lastEndpoint = null;
+
+  function unwrap(v){
+    if(v && typeof v === 'object'){
+      if(v.$oid) return String(v.$oid);
+      if(v.$numberInt) return Number(v.$numberInt);
+      if(v.$numberDouble) return Number(v.$numberDouble);
+      const keys = Object.keys(v);
+      if(keys.length === 1 && (typeof v[keys[0]] !== 'object')) return v[keys[0]];
+      return v;
+    }
+    return v;
+  }
+
+  function normalize(arr){
+    const mapped = arr.map((x) => {
+      const out = {};
+      for(const k in x){
+        out[k] = unwrap(x[k]);
+      }
+      out.coal = out.coal || out.name || '';
+      if(out.gcv !== undefined && out.gcv !== null) out.gcv = Number(out.gcv) || out.gcv;
+      if(out.cost !== undefined && out.cost !== null) out.cost = Number(out.cost) || out.cost;
+      return out;
+    });
+
+    // Sort alphabetically (case-insensitive) by coal name
+    mapped.sort((a, b) => {
+      const A = (a.coal || '').toString().trim().toLowerCase();
+      const B = (b.coal || '').toString().trim().toLowerCase();
+      if (A < B) return -1;
+      if (A > B) return 1;
+      return 0;
+    });
+
+    return mapped;
+  }
+
+
+  async function tryLoad(){
+    $status.textContent = 'Loading...';
+    lastEndpoint = null;
+    raw = [];
+
+    if(Array.isArray(window.COAL_DB) && window.COAL_DB.length){
+      lastEndpoint = 'window.COAL_DB';
+      raw = normalize(window.COAL_DB);
+      return true;
+    }
+
+    for(const ep of ENDPOINTS){
+      if(typeof ep === 'function'){
+        const res = ep();
+        if(res && res.type === 'inline') { lastEndpoint = res.url; raw = normalize(window.COAL_DB || []); return true; }
+        continue;
+      }
+      try{
+        const resp = await fetch(ep, { credentials:'same-origin' });
+        if(!resp.ok){ console.warn('Endpoint', ep, 'returned', resp.status); continue; }
+        const json = await resp.json();
+        let arr = [];
+        if(Array.isArray(json)) arr = json;
+        else if(json && Array.isArray(json.data)) arr = json.data;
+        else if(json && Array.isArray(json.coals)) arr = json.coals;
+        else {
+          const maybeArr = Object.values(json).find(v => Array.isArray(v));
+          if(Array.isArray(maybeArr)) arr = maybeArr;
+        }
+        if(!Array.isArray(arr)){ console.warn('Endpoint', ep, 'did not return an array'); continue; }
+        raw = normalize(arr);
+        lastEndpoint = ep;
+        return true;
+      }catch(err){
+        console.warn('Fetch failed for', ep, err);
+        continue;
+      }
+    }
+    return false;
+  }
+
+  function render(){
+    filtered = filtered || [];
+    pages = Math.max(1, Math.ceil(filtered.length / PAGE_SIZE));
+    if(page > pages) page = pages;
+    $info.textContent = `${page} / ${pages} (${filtered.length})`;
+    $prev.disabled = page <= 1; $next.disabled = page >= pages;
+    $tbody.innerHTML = '';
+
+    if(filtered.length === 0){
+      $emptyHint.style.display = 'block';
+      $recordsBadge.textContent = '0';
+      $endpointUsed.textContent = lastEndpoint || 'none';
+      return;
+    } else {
+      $emptyHint.style.display = 'none';
+    }
+
+    const offset = (page-1)*PAGE_SIZE;
+    const slice = filtered.slice(offset, offset + PAGE_SIZE);
+    slice.forEach((r, idx) => {
+      const tr = document.createElement('tr');
+      tr.innerHTML = `
+        <td>${offset + idx + 1}</td>
+        <td>${escapeHtml(r.coal ?? '')}</td>
+        <td>${isFiniteNumber(r.gcv)? r.gcv : (r.gcv ?? '--')}</td>
+        <td>${isFiniteNumber(r.cost)? r.cost : (r.cost ?? '--')}</td>
+        <td>${r.SiO2 ?? (r.SiO2 === 0 ? 0 : '--')}</td>
+        <td>${r.Al2O3 ?? (r.Al2O3 === 0 ? 0 : '--')}</td>
+        <td>${r.Fe2O3 ?? (r.Fe2O3 === 0 ? 0 : '--')}</td>
+        <td>${r.CaO ?? (r.CaO === 0 ? 0 : '--')}</td>
+        <td>${r.MgO ?? (r.MgO === 0 ? 0 : '--')}</td>
+        <td>${r.Na2O ?? (r.Na2O === 0 ? 0 : '--')}</td>
+        <td>${r.K2O ?? (r.K2O === 0 ? 0 : '--')}</td>
+        <td>${r.SO3 ?? (r.SO3 === 0 ? 0 : '--')}</td>
+      `;
+      $tbody.appendChild(tr);
+    });
+
+    $recordsBadge.textContent = String(filtered.length);
+    $endpointUsed.textContent = lastEndpoint || 'none';
+  }
+
+  function isFiniteNumber(v){ return typeof v === 'number' && isFinite(v); }
+  function escapeHtml(s){ if(s===null||s===undefined) return ''; return String(s).replace(/[&<>"]/g, c => ({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;'}[c])); }
+
+  function applySearch(){
+    const q = ($search.value || '').toLowerCase().trim();
+    if(!q) { filtered = raw.slice(); page = 1; render(); return; }
+    filtered = raw.filter(r => {
+      if((r.coal||'').toString().toLowerCase().includes(q)) return true;
+      return Object.keys(r).some(k => {
+        const val = r[k];
+        if(val === null || val === undefined) return false;
+        return String(val).toLowerCase().includes(q);
+      });
+    });
+    page = 1;
+    render();
+  }
+
+  function exportCSV(){
+    if(!filtered || !filtered.length){ alert('No rows to export'); return; }
+    const cols = ['coal','gcv','cost','SiO2','Al2O3','Fe2O3','CaO','MgO','Na2O','K2O','SO3'];
+    const headers = ['Coal','GCV','Cost','SiO2','Al2O3','Fe2O3','CaO','MgO','Na2O','K2O','SO3'];
+    const rows = [headers.join(',')];
+    filtered.forEach(r => {
+      rows.push(cols.map(c => `"${String(r[c] ?? '').replace(/"/g,'""')}"`).join(','));
+    });
+    const blob = new Blob([rows.join('\n')], { type:'text/csv' });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement('a'); a.href = url; a.download = 'coals.csv'; document.body.appendChild(a); a.click();
+    setTimeout(()=>{ URL.revokeObjectURL(url); a.remove(); }, 1500);
+  }
+
+  $search.addEventListener('input', applySearch);
+  $refresh.addEventListener('click', async ()=> { await init(); });
+  $export.addEventListener('click', exportCSV);
+  $prev.addEventListener('click', ()=> { if(page>1){ page--; render(); }});
+  $next.addEventListener('click', ()=> { if(page < pages){ page++; render(); }});
+  if($tryEndpoints) $tryEndpoints.addEventListener('click', ()=> init(true));
+
+  async function init(force=false){
+    $status.textContent = 'Loading...';
+    try{
+      const ok = await tryLoad();
+      if(!ok){
+        $status.textContent = 'Unable to load coal data. Tried multiple endpoints.';
+        raw = [];
+        filtered = [];
+        render();
+        console.error('No endpoint returned usable array. Endpoints tried:', ENDPOINTS);
+        return;
+      }
+      filtered = raw.slice();
+      page = 1;
+      render();
+      $status.textContent = `Loaded ${raw.length} records from ${lastEndpoint || 'unknown'}`;
+    }catch(err){
+      console.error(err);
+      $status.textContent = 'Load failed — check console/network.';
+    }
+  }
+
+  await init();
+
+})();
+</script>
+
+<!-- Example stub for logout (replace with your real implementation) -->
+<!-- <script>
+function logoutUser(){
+  alert('Logout clicked — implement your logout logic.');
+}
+</script> -->
+</body>
+</html>

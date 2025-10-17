@@ -1,0 +1,434 @@
+<!doctype html>
+
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>ABCD — Advanced Bunkering & Coal Database — Login</title>
+
+  <!-- Premium font -->
+
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700;800&display=swap" rel="stylesheet">
+
+  <style>
+    /* ===== Design tokens ===== */
+    :root{
+      --bg-dark: #031426;
+      --accent: #0f6fff;       /* main accent */
+      --accent-2: #00c2a8;     /* secondary accent */
+      --muted: #9aa6b2;
+      --glass: rgba(255,255,255,0.86);
+      --glass-strong: rgba(255,255,255,0.94);
+      --card-radius: 16px;
+      --max-width: 520px;
+      --nav-height: 72px;
+      --shadow-lg: 0 20px 50px rgba(2,10,30,0.55);
+      --shadow-soft: 0 8px 24px rgba(2,10,30,0.28);
+      --transition: 180ms cubic-bezier(.2,.9,.3,1);
+      --brand: "ABCD-Advanced";
+    }
+
+    /* Reset / base */
+    *,*::before,*::after{box-sizing:border-box}
+    html,body{height:100%}
+    body{
+      margin:0;
+      font-family:Inter,system-ui,-apple-system,'Segoe UI',Roboto,"Helvetica Neue",Arial;
+      -webkit-font-smoothing:antialiased;
+      -moz-osx-font-smoothing:grayscale;
+      background: linear-gradient(180deg,#061423 0%, #071a2a 60%); /* fallback for video */
+      color:#0a1620;
+      display:flex;
+      align-items:center;
+      justify-content:center;
+      min-height:100vh;
+      padding-top:var(--nav-height);
+      overflow-x:hidden;
+    }
+
+    /* ===== Video background + animated overlay ===== */
+    .bg-video-wrap{
+      position:fixed; inset:0; z-index:-20; overflow:hidden;
+      pointer-events:none;
+      background: linear-gradient(180deg, rgba(3,20,38,0.85), rgba(7,26,42,0.9));
+    }
+
+    #bgVideo{
+      position:absolute; inset:0; width:100%; height:100%;
+      object-fit:cover;
+      transform:scale(1.02);
+      filter: saturate(0.95) contrast(0.92) brightness(0.96);
+      will-change: transform;
+    }
+
+    /* animated subtle moving gradient to add premium depth */
+    .video-overlay {
+      position: absolute; inset:0; z-index: -10; pointer-events: none;
+      background:
+        linear-gradient(90deg, rgba(15,111,255,0.06), rgba(0,194,168,0.03));
+      mix-blend-mode: overlay;
+      animation: overlayMove 12s linear infinite;
+      opacity: 0.85;
+      backdrop-filter: blur(2px);
+    }
+    @keyframes overlayMove {
+      0% { transform: translateX(-6%); }
+      50% { transform: translateX(6%); }
+      100% { transform: translateX(-6%); }
+    }
+
+    /* Respect reduced motion */
+    @media (prefers-reduced-motion: reduce) {
+      .video-overlay, #bgVideo { animation: none; transition: none; }
+    }
+
+    /* ===== Navbar ===== */
+    .navbar{
+      position:fixed; top:0; left:0; right:0; height:var(--nav-height);
+      display:flex; align-items:center; gap:12px;
+      padding:10px 20px; z-index:40;
+      background: linear-gradient(90deg, rgba(2,8,25,0.85), rgba(2,8,25,0.6));
+      box-shadow: 0 6px 18px rgba(2,8,25,0.45);
+      border-bottom: 1px solid rgba(255,255,255,0.03);
+      backdrop-filter: blur(6px);
+    }
+    .brand {
+      display:flex; align-items:center; gap:12px; color:white;
+      text-decoration:none;
+    }
+    .brand img{ height:44px; width:auto; display:block; }
+    .brand h1{
+      font-size:16px; line-height:1; margin:0; font-weight:700;
+      color:#fff; letter-spacing:0.2px;
+    }
+    .brand small{ display:block; font-weight:500; font-size:11px; color:var(--muted); margin-top:2px; }
+
+    .nav-right{ margin-left:auto; color:#95a6b2; font-size:13px; display:flex; gap:12px; align-items:center; }
+    .version-pill{
+      background: rgba(255,255,255,0.03); color:var(--muted); padding:6px 10px; border-radius:999px; font-size:12px;
+      border:1px solid rgba(255,255,255,0.02);
+    }
+
+    /* ===== Login Card (glass + border gradient) ===== */
+    .login-wrap{ width:100%; max-width:var(--max-width); padding:28px; position:relative; z-index:30; }
+    .login-card{
+      background: linear-gradient(180deg, rgba(255,255,255,0.86), rgba(255,255,255,0.80));
+      border-radius: var(--card-radius);
+      padding: 56px 36px 30px;
+      box-shadow: var(--shadow-lg);
+      border: 1px solid rgba(255,255,255,0.18);
+      position:relative;
+      overflow:visible;
+      transition: transform var(--transition), box-shadow var(--transition);
+      backdrop-filter: blur(8px);
+    }
+    .login-card:hover{ transform: translateY(-6px); box-shadow: 0 28px 70px rgba(2,10,30,0.6); }
+
+    /* decorative gradient ring around card (subtle) */
+    .login-card::before{
+      content:"";
+      position:absolute; inset:-1px; border-radius:inherit; z-index:-1;
+      padding:1px;
+      background: linear-gradient(90deg, rgba(15,111,255,0.12), rgba(0,194,168,0.07));
+      -webkit-mask: linear-gradient(#000,#000) content-box, linear-gradient(#000,#000);
+      -webkit-mask-composite: xor;
+      mask-composite: exclude;
+      pointer-events:none;
+    }
+
+    /* floating emblem */
+    .emblem{
+      width:108px; height:108px; position:absolute; left:50%; transform:translateX(-50%); top:-52px;
+      background: linear-gradient(180deg, #fff, rgba(255,255,255,0.98));
+      border-radius:20px; display:flex; align-items:center; justify-content:center;
+      box-shadow: 0 8px 30px rgba(4,18,36,0.35);
+      border:1px solid rgba(0,0,0,0.06);
+    }
+    .emblem img{ width:72px; height:auto; display:block; }
+
+    /* Title */
+    .login-title{
+      text-align:center; margin-top:36px; margin-bottom:4px;
+    }
+    .login-title h2{ font-size:20px; margin:0; color:var(--bg-dark); letter-spacing:0.6px; font-weight:700; }
+    .login-title p{ margin:6px 0 0; color:var(--muted); font-size:13px; }
+
+    /* Form */
+    form{ margin-top:18px; display:grid; gap:12px; }
+    .field{
+      display:flex; align-items:center; gap:12px; background: rgba(255,255,255,0.96);
+      border-radius:12px; padding:10px 12px; border:1px solid rgba(12,20,30,0.04);
+      transition: box-shadow var(--transition), border-color var(--transition), transform var(--transition);
+    }
+    .field:focus-within{ box-shadow: 0 8px 30px rgba(15,111,255,0.06); border-color: rgba(15,111,255,0.18); transform: translateY(-1px); }
+    .field svg{ width:18px; height:18px; opacity:0.86; flex:0 0 18px; color:var(--muted); }
+
+    .field input{
+      border:0; outline:0; width:100%; font-size:15px; background:transparent; color:#08202a;
+    }
+
+    /* show/hide password toggle */
+    .toggle-pass{ cursor:pointer; background:transparent; border:0; display:inline-flex; align-items:center; gap:6px; color:var(--muted); padding:6px; border-radius:8px; }
+
+    /* Actions */
+    .actions{ display:flex; gap:12px; margin-top:6px; align-items:center; justify-content:space-between; flex-wrap:wrap; }
+    .remember{ display:flex; align-items:center; gap:8px; color:var(--muted); font-size:13px; }
+    .remember input{ width:16px; height:16px; }
+
+    .primary-btn{
+      display:inline-block; width:100%; text-align:center; padding:12px 14px; border-radius:12px; border:0;
+      background: linear-gradient(90deg,var(--accent), #1f8bff);
+      color:white; font-weight:700; font-size:15px; cursor:pointer; transition: transform var(--transition), box-shadow var(--transition);
+      box-shadow: 0 8px 30px rgba(15,111,255,0.14);
+    }
+    .primary-btn:active{ transform: translateY(1px) scale(0.998); }
+    .secondary-btn{
+      display:inline-flex; gap:8px; align-items:center; justify-content:center; padding:10px 12px; border-radius:10px;
+      border:1px solid rgba(12,20,30,0.06); background:rgba(255,255,255,0.92); color:var(--bg-dark); font-weight:600; cursor:pointer;
+    }
+
+    .helper-links{ display:flex; gap:12px; align-items:center; justify-content:flex-end; margin-top:8px; }
+    .helper-links a{ color:var(--muted); font-size:13px; text-decoration:none; }
+    .helper-links a:hover{ color:var(--accent); text-decoration:underline; }
+
+    /* status message */
+    #message{ font-size:13px; min-height:18px; color:#b22a2a; margin-top:6px; text-align:center; }
+
+    /* footer small */
+    .foot{ margin-top:14px; text-align:center; color:var(--muted); font-size:12px; }
+
+    /* responsive */
+    @media (max-width:860px){ :root{ --max-width:520px } .login-card{ padding:46px 22px 26px; } .emblem{ width:88px; height:88px; top:-44px; } }
+    @media (max-width:480px){
+      body{ padding-top:62px }
+      .navbar h1{ font-size:14px }
+      .emblem{ width:72px; height:72px; top:-36px }
+      .login-card{ padding:38px 18px 20px; border-radius:12px }
+      .login-wrap{ padding:12px }
+    }
+  </style>
+
+</head>
+<body>
+
+  <!-- Video (lazy-loaded on small devices/offline) -->
+
+  <div class="bg-video-wrap" aria-hidden="true">
+    <!-- We'll optionally remove <source> on small/save-data devices via JS to avoid loading heavy file -->
+    <video id="bgVideo" autoplay muted loop playsinline poster="assets/bg-poster.jpg" preload="metadata" aria-hidden="true">
+      <source src="coalbunkering.mp4" type="video/mp4">
+      <!-- fallback -->
+    </video>
+
+```
+<div class="video-overlay" aria-hidden="true"></div>
+```
+
+  </div>
+
+  <!-- Navbar -->
+
+  <header class="navbar" role="banner" aria-label="Site header">
+    <a class="brand" href="#" aria-label="ABCD home">
+      <img src="/public/images/abhitech-logo.png" alt="ABCD logo" />
+      <div>
+        <h1>ABCD — Advanced Bunkering</h1>
+        <small>Coal Database & Process Control</small>
+      </div>
+    </a>
+
+
+<div class="nav-right" role="navigation" aria-hidden="true">
+  <div class="version-pill">v1.2.0</div>
+  <div style="font-size:13px;color:#9fb3c4">Secure · Industrial</div>
+</div>
+
+
+  </header>
+
+  <!-- Login -->
+
+  <main class="login-wrap" role="main" aria-labelledby="login-title">
+    <section class="login-card" aria-describedby="login-desc">
+      <div class="emblem" aria-hidden="true">
+        <img src="/public/images/abhitech-logo.png" alt="">
+      </div>
+
+
+  <div class="login-title" id="login-title">
+    <h2>Welcome to ABCD</h2>
+    <p id="login-desc">Advanced Bunkering & Coal Database — sign in to continue</p>
+  </div>
+
+  <form id="loginForm" autocomplete="on" novalidate>
+    <!-- email -->
+    <label class="visually-hidden" for="email">Email</label>
+    <div class="field" role="group" aria-labelledby="label-email">
+      <!-- user icon -->
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+        <path d="M12 12a4 4 0 1 0 0-8 4 4 0 0 0 0 8z" fill="#8fa8b6"></path>
+        <path d="M4 20a8 8 0 0 1 16 0" fill="#8fa8b6"></path>
+      </svg>
+      <input id="email" name="email" type="email" inputmode="email" placeholder="Email" required aria-required="true" />
+    </div>
+
+    <!-- password -->
+    <label class="visually-hidden" for="password">Password</label>
+    <div class="field" role="group" aria-labelledby="label-password">
+      <svg viewBox="0 0 24 24" fill="none" aria-hidden="true" focusable="false">
+        <path d="M6 10v6a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-6" stroke="#8fa8b6" stroke-width="1.2"></path>
+        <rect x="8" y="10" width="8" height="6" rx="1.2" fill="#e5eef5"></rect>
+      </svg>
+      <input id="password" name="password" type="password" placeholder="Password" required aria-required="true" />
+      <button type="button" class="toggle-pass" id="togglePass" aria-label="Show password" title="Show password">
+        <svg id="eyeIcon" viewBox="0 0 24 24" width="16" height="16" fill="none" aria-hidden="true">
+          <path d="M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12z" stroke="#5f747f" stroke-width="1.2"/>
+          <circle cx="12" cy="12" r="3" fill="#5f747f"/>
+        </svg>
+      </button>
+    </div>
+
+    <div class="actions">
+      <div class="remember">
+        <input id="remember" type="checkbox" />
+        <label for="remember">Remember me</label>
+      </div>
+
+      <div class="helper-links" aria-hidden="false">
+        <a href="#" id="forgot">Forgot password?</a>
+      </div>
+    </div>
+
+    <button class="primary-btn" id="submitBtn" type="submit">Sign in to ABCD</button>
+
+    <!-- or SSO -->
+    <div style="display:flex; gap:10px; margin-top:8px;">
+      <button type="button" class="secondary-btn" id="ssoBtn" title="Enterprise sign-in (SSO)">
+        <!-- SSO icon -->
+        <svg viewBox="0 0 24 24" width="16" height="16" aria-hidden="true" style="opacity:0.9">
+          <path d="M3 12h18" stroke="#234a5a" stroke-width="1.2" stroke-linecap="round"/>
+          <path d="M7 8v8" stroke="#234a5a" stroke-width="1.2" stroke-linecap="round"/>
+        </svg>
+        Sign in with Enterprise SSO
+      </button>
+    </div>
+
+    <div id="message" role="status" aria-live="polite"></div>
+  </form>
+
+  <div class="foot">© 2025 Abhitech Energycon Limited — ABCD system</div>
+</section>
+
+
+  </main>
+
+  <script>
+    // ===== Performance: avoid loading video on save-data or narrow screens =====
+    (function(){
+      const video = document.getElementById('bgVideo');
+      try{
+        const conn = navigator.connection || navigator.mozConnection || navigator.webkitConnection;
+        const saveData = navigator.connection && navigator.connection.saveData;
+        const smallScreen = window.matchMedia('(max-width:640px)').matches;
+
+        if (saveData || smallScreen) {
+          // Remove source to prevent heavy download
+          Array.from(video.querySelectorAll('source')).forEach(s => s.remove());
+          video.load();
+          // Optionally set a still poster background if provided
+          document.querySelector('.bg-video-wrap').style.background = 'linear-gradient(180deg,#031426,#071a2a)';
+        }
+      }catch(e){ /* ignore */ }
+    })();
+
+    // ===== Form handling (preserve your dummy auth) =====
+    const loginForm = document.getElementById('loginForm');
+    const message = document.getElementById('message');
+    const submitBtn = document.getElementById('submitBtn');
+
+    loginForm.addEventListener('submit', function(e){
+      e.preventDefault();
+      message.textContent = '';
+      const email = (document.getElementById('email').value || '').trim();
+      const password = (document.getElementById('password').value || '').trim();
+
+      if(!email || !password){
+        message.style.color = '#b22a2a';
+        message.textContent = 'Please fill in both fields.';
+        return;
+      }
+
+      // basic email pattern check
+      const emailPattern = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
+      if(!emailPattern.test(email)){
+        message.style.color = '#b22a2a';
+        message.textContent = 'Enter a valid email address.';
+        return;
+      }
+
+      // Dummy validation - replace with real auth
+      submitBtn.disabled = true;
+      submitBtn.style.opacity = 0.9;
+      submitBtn.textContent = 'Signing in...';
+
+      setTimeout(() => {
+        if(email === 'coalblend@abhitech.com' && password === 'password123'){
+          localStorage.setItem('isLoggedIn', 'true');
+          message.style.color = '#0b7a3a';
+          message.textContent = 'Login successful. Redirecting…';
+          // redirect
+          window.location.href = '/public/input.html';
+        } else {
+          submitBtn.disabled = false;
+          submitBtn.textContent = 'Sign in to ABCD';
+          message.style.color = '#b22a2a';
+          message.textContent = 'Invalid email or password.';
+        }
+      }, 800);
+    });
+
+    // ===== Show / hide password =====
+    (function(){
+      const pass = document.getElementById('password');
+      const toggle = document.getElementById('togglePass');
+      const eye = document.getElementById('eyeIcon');
+
+      toggle.addEventListener('click', function(){
+        const isPass = pass.type === 'password';
+        pass.type = isPass ? 'text' : 'password';
+        toggle.setAttribute('aria-label', isPass ? 'Hide password' : 'Show password');
+        // simple icon switch: invert fill/ stroke change
+        if(isPass){
+          eye.innerHTML = '<path d="M3 12s4-7 10-7 10 7 10 7-4 7-10 7S3 12 3 12z" stroke="#08324d" stroke-width="1.2"/><circle cx="12" cy="12" r="3" fill="#08324d"/>';
+        } else {
+          eye.innerHTML = '<path d="M2 2l20 20" stroke="#5f747f" stroke-width="1.4"/><path d="M10.6 10.6A2.6 2.6 0 1 0 15.4 15.4" stroke="#5f747f" stroke-width="1.4" />';
+        }
+      });
+    })();
+
+    // ===== assist autoplay: try play muted video; if blocked show nothing (we have poster) =====
+    (function(){
+      const bgVideo = document.getElementById('bgVideo');
+      if(!bgVideo) return;
+      bgVideo.muted = true;
+      const p = bgVideo.play();
+      if(p && typeof p.then === 'function'){
+        p.then(() => {/* ok */}).catch(()=>{/* ignore, poster shows */});
+      }
+    })();
+
+    // ===== small accessibility helpers =====
+    window.addEventListener('load', () => {
+      const email = document.getElementById('email');
+      if(email) email.focus({preventScroll:true});
+    });
+
+    // ===== keyboard submit support for SSO placeholder =====
+    document.getElementById('ssoBtn').addEventListener('click', function(){
+      alert('Enterprise SSO integration placeholder (implement SAML/OAuth redirect).');
+    });
+
+  </script>
+
+</body>
+</html>

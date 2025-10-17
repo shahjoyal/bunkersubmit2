@@ -1,0 +1,1912 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Coal Blending Ratio — modified</title>
+ <style>
+  /* ------------------------------
+     Core variables + base reset
+     ------------------------------ */
+  :root{
+    --bg: #F7F8FA;
+    --card: #fff;
+    --muted: #6b7280;
+    --accent: #02008a;
+    --navbar-height: 65px; /* used to position floating panel */
+        /* tweak these to move the line farther/closer and change arrow length */
+    --bunker-top-line-distance: 36px; /* distance from .layout top to horizontal line */
+    --bunker-arrow-height: 140px;     /* how long arrows reach down */
+    --line-left-offset: 4%;           /* start the line a bit earlier than first arrow */
+    --line-right-offset: 8.2%;          /* end the line before the right edge */
+    --arrow-width: 2px;
+    --arrow-head-size: 10px;  
+  }
+
+  *, *::before, *::after { box-sizing: border-box; }
+
+  body {
+    font-family: Inter, system-ui, Arial, Helvetica, sans-serif;
+    background: var(--bg);
+    margin: 0;
+    color: #111;
+    -webkit-font-smoothing:antialiased;
+    -moz-osx-font-smoothing:grayscale;
+  }
+
+  /* hide non-essential UI kept in DOM */
+  #loader,
+  #downloadPDF,
+  .summary-table,
+  #summaryHidden {
+    display: none !important;
+  }
+
+  /* ------------------------------
+     Navbar
+     ------------------------------ */
+  .navbar {
+    width: 100%;
+    background-color: #f7f8fa;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 15px 20px;
+    position: fixed;
+    top: 0;
+    left: 0;
+    height: var(--navbar-height);
+    z-index: 1100;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.06);
+  }
+  .navbar img {
+    height: 95px;
+    max-height: calc(var(--navbar-height) - 10px);
+    margin-right: 10px;
+    margin-left: 0;
+    object-fit: contain;
+  }
+  .navbar h1 {
+    margin: 0 12px;
+    font-size: 20px;
+    color: #000;
+    font-weight: 700;
+    letter-spacing: 0.2px;
+  }
+  .nav-buttons { display:flex; gap:10px; align-items:center; margin-right:8px; }
+  .navbar button {
+    padding: 10px 15px;
+    background-color: #02008a;
+    color: #fff;
+    border: none;
+    cursor: pointer;
+    border-radius: 6px;
+    font-weight: 700;
+  }
+  .navbar button:hover { background-color: #001cbb; }
+
+  /* ------------------------------
+     Floating compact input panel
+     - uses fixed positioning so it doesn't affect layout flow
+     ------------------------------ */
+  .input-section {
+    position: fixed;
+    top: 140px; /* sits just below navbar */
+    left: 16px;
+    z-index: 1000;
+    padding: 10px;
+    background: #02008a;
+    border-radius: 10px;
+    box-shadow: 0 6px 22px rgba(2,8,23,0.06);
+    display: flex;
+    flex-direction: column;
+    gap: 8px;
+    max-width: 140px;
+    min-width: 96px;
+  }
+  .input-section label {
+    font-size: 12px;
+    font-weight: 600;
+    color: #fff;
+    margin: 0;
+  }
+  .input-section .input-box {
+    padding: 6px 10px;
+    font-size: 13px;
+    border: 1px solid #d6d6d6;
+    border-radius: 6px;
+    outline: none;
+    background: #fff;
+  }
+  .input-section .input-box:focus {
+    border-color: #007bff;
+    box-shadow: 0 0 6px rgba(0,123,255,0.14);
+  }
+
+  /* ------------------------------
+     Save / Submit button
+     ------------------------------ */
+/* Submit inside the floating input-section */
+#saveBtn {
+  /* non-fixed — the button lives inside the input panel so it flows with it */
+  position: relative;
+  display: inline-block;
+  background: red;
+  color: #fff;
+  border: none;
+  padding: 10px 14px;
+  font-size: 13px;
+  border-radius: 10px;
+  cursor: pointer;
+  box-shadow: 0 8px 24px rgba(2,8,23,0.14);
+  transition: transform .08s ease, box-shadow .12s;
+  min-width: 84px;
+  text-align: center;
+}
+
+/* active press */
+#saveBtn:active { transform: translateY(1px); }
+
+/* larger display on desktop if you want a bigger primary CTA */
+@media (min-width: 1100px) {
+  .input-section #saveBtn {
+    padding: 12px 18px;
+    font-size: 14px;
+  }
+}
+
+/* tighter on small screens */
+@media (max-width:700px) {
+  .input-section { left: 12px; top: calc(var(--navbar-height) + 12px); }
+  .input-section #saveBtn { padding: 10px 12px; font-size: 13px; }
+}
+
+/* If you still want a floating CTA on the lower-right for small screens:
+   uncomment this block and comment the display in .input-section (optional)
+#saveBtn.floating {
+  position: fixed;
+  right: 16px;
+  bottom: 16px;
+  z-index: 1200;
+  padding: 12px 16px;
+  border-radius: 12px;
+}
+@media (min-width: 900px) { #saveBtn.floating { right:24px; bottom:24px; } }
+*/
+
+
+  /* ------------------------------
+     Main grid - consolidated & consistent
+     - left column reserved for labels / control (coal-flow)
+     - next 6 columns allocated to bunkers/inputs
+     ------------------------------ */
+  .mills-grid {
+    display: grid;
+    grid-template-columns: 150px repeat(6, 1fr)  ; /* left label + 6 bunkers */
+    gap: 12px;
+    align-items: start;
+    padding: calc(var(--navbar-height) + 20px) 12px 24px 12px; /* push content below navbar visually */
+  }
+
+
+  /* === Align each flow-input .mill under its corresponding bunker column === */
+/* Ensure the left label stays in column 1 */
+.mills-grid > .mill.coal-flow {
+  grid-column: 1;
+  align-self: center;
+  padding-left: 6px;
+}
+
+/* Map data-mill 0..5 to grid columns 2..7 so each input aligns under bunker 1..6 */
+.mills-grid > .mill:has(.flow-input[data-mill="0"]) { grid-column: 2; }
+.mills-grid > .mill:has(.flow-input[data-mill="1"]) { grid-column: 3; }
+.mills-grid > .mill:has(.flow-input[data-mill="2"]) { grid-column: 4; }
+.mills-grid > .mill:has(.flow-input[data-mill="3"]) { grid-column: 5; }
+.mills-grid > .mill:has(.flow-input[data-mill="4"]) { grid-column: 6; }
+.mills-grid > .mill:has(.flow-input[data-mill="5"]) { grid-column: 7; }
+
+/* Smaller screens: same mapping but tighter columns (helps prevent wrapping) */
+@media (max-width: 700px) {
+  .mills-grid > .mill:has(.flow-input[data-mill="0"]) { grid-column: 2; }
+  .mills-grid > .mill:has(.flow-input[data-mill="1"]) { grid-column: 3; }
+  .mills-grid > .mill:has(.flow-input[data-mill="2"]) { grid-column: 4; }
+  .mills-grid > .mill:has(.flow-input[data-mill="3"]) { grid-column: 5; }
+  .mills-grid > .mill:has(.flow-input[data-mill="4"]) { grid-column: 6; }
+  .mills-grid > .mill:has(.flow-input[data-mill="5"]) { grid-column: 7; }
+}
+
+  /* hide DOM-only fields (kept for logic) */
+  .mills-grid .dropdown,
+  .mills-grid .percentage-input,
+  .mills-grid .gcv,
+  .mills-grid .cost-head,
+  .mills-grid .gcv-box,
+  .mills-grid .cost-input,
+  .mills-grid .aft-head,
+  .mills-grid .aft,
+  .mills-grid .next-blend-box,
+  .mills-grid .mill.green,
+  .mills-grid .mill[readonly] {
+    display: none !important;
+  }
+
+  /* by default hide .mill direct children (we selectively show the coal-flow row & flow inputs) */
+  .mills-grid > .mill { display: none !important; }
+
+  /* coal-flow header cell (left column) */
+  .mills-grid > .mill.coal-flow {
+    display: flex !important;
+    align-items: center;
+    justify-content: flex-start;
+    padding: 10px 12px;
+    background: transparent;
+    font-weight: 700;
+  }
+
+  /* modern nicety: show mill containers that have .flow-input (fallback ensured by explicit flow inputs below) */
+  .mills-grid > .mill:has(.flow-input) {
+    display:flex !important;
+    align-items:center;
+    justify-content:flex-start;
+    padding:6px;
+  }
+
+  /* diagram area stretches across the 6 bunker columns */
+  .mills-grid > .diagram-in-grid {
+    display: block !important;
+    grid-column: 2 / span 6;
+    padding: 8px;
+  }
+
+  /* diagram card */
+  .diagram-in-grid .layout {
+    background: var(--card);
+    border-radius: 12px;
+    padding: 16px;
+    box-shadow: 0 8px 30px rgba(2,8,23,0.06);
+  }
+
+  /* bunkers grid */
+  .bunkers-grid {
+    display: grid;
+    grid-template-columns: repeat(6, 1fr);
+    gap: 22px;
+    align-items: end;
+    padding: 18px;
+  }
+  .bunker {
+    position: relative;
+    height: 460px;
+    display:flex;
+    flex-direction:column;
+    align-items:center;
+    justify-content:flex-end;
+  }
+  .bunker svg { width:100%; height:100%; max-width:260px; max-height:420px; display:block; }
+  .bunker .label {
+    position:absolute;
+    bottom:12px;
+    left:50%;
+    transform:translateX(-50%);
+    font-size:14px;
+    /* background:rgba(255,255,255,0.95); */
+    background:rgba(255,255,255,0.95);
+    padding:8px 12px;
+    border-radius:10px;
+    box-shadow:0 2px 10px rgba(0,0,0,0.06);
+    white-space:nowrap;
+  }
+
+  /* add coal button */
+  .add-coal-btn {
+    position:absolute;
+    top:10px;
+    right:12px;
+    border-radius:50%;
+    width:48px;
+    height:48px;
+    border:none;
+    background:#0ea5a4;
+    color:#fff;
+    font-size:22px;
+    cursor:pointer;
+    box-shadow:0 6px 18px rgba(2,6,23,0.14);
+  }
+  .add-coal-btn:active { transform: scale(.98); }
+
+  /* Flow inputs */
+  .flow-input {
+    width: 100%;
+    max-width: 140px;
+    min-width: 72px;
+    padding: 8px;
+    border-radius: 8px;
+    border: 1px solid #e6e6e6;
+    font-size: 15px;
+    text-align: center;
+    background: #fff;
+  }
+  .coal-flow { font-weight:700; color:var(--muted); font-size:14px; padding-left:6px; }
+
+  /* popup styling (unchanged but consistent) */
+  .popup { position:fixed; inset:0; display:flex; align-items:center; justify-content:center; background:rgba(0,0,0,0.35); z-index:1500; }
+  .popup.hidden { display:none; }
+  .popup-content {
+    background:#fff;
+    padding:18px;
+    border-radius:12px;
+    width:420px;
+    box-shadow:0 10px 40px rgba(2,6,23,0.18);
+  }
+  .popup-content h3 { margin:0 0 10px 0; font-size:18px; }
+  .popup-row { display:flex; gap:12px; margin:10px 0; align-items:center; }
+  .popup-row label { min-width:90px; font-size:14px; color:#444; }
+  .popup-row select, .popup-row input { flex:1; padding:10px; border-radius:8px; border:1px solid #e6e6e6; font-size:15px; }
+  .popup-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:14px; }
+  .btn { padding:10px 14px; border-radius:8px; border:none; cursor:pointer; font-size:14px; }
+  .btn-save { background:#0ea5a4; color:#fff; }
+  .btn-cancel { background:#f3f4f6; }
+  .btn-clear { background:#ef4444; color:#fff; }
+
+  /* bunker tooltip */
+  .bunker .tooltip {
+    position:absolute;
+    bottom:100%;
+    left:50%;
+    transform:translateX(-50%);
+    background:rgba(0,0,0,0.85);
+    color:#fff;
+    padding:8px 12px;
+    border-radius:8px;
+    font-size:13px;
+    line-height:1.4;
+    white-space: pre-line;
+    display:none;
+    z-index:9999;
+    min-width:160px;
+    text-align:left;
+    pointer-events:none;
+  }
+  .bunker:hover .tooltip { display:block; }
+
+  /* ------------------------------
+     Responsive: tidy sizes + repositioning
+     ------------------------------ */
+
+  /* Slightly narrower screens */
+  @media (max-width:1100px) {
+    .bunker { height: 360px; }
+    .bunker svg { max-width:220px; max-height:340px; }
+    .bunkers-grid { grid-template-columns: repeat(3, 1fr); gap:18px; padding:14px; }
+    .flow-input { max-width:120px; font-size:14px; padding:6px; }
+    .mills-grid { padding: calc(var(--navbar-height) + 16px) 10px 18px 10px; gap:10px; }
+  }
+
+  /* Tablet / Large phone */
+  @media (max-width:700px) {
+    :root { --navbar-height: 56px; }
+    .navbar { height: var(--navbar-height); padding: 10px 14px; }
+    .navbar img { height: 44px; max-height: calc(var(--navbar-height) - 6px); }
+
+    /* floating input panel: move a bit down on smaller screens but remains fixed */
+    .input-section {
+      top: calc(var(--navbar-height) + 12px);
+      left: 12px;
+      max-width: 120px;
+      padding: 8px;
+      gap: 6px;
+      border-radius: 8px;
+    }
+    .input-section label { font-size: 12px; }
+    .input-section .input-box { font-size: 13px; padding:6px 8px; }
+
+    .bunker { height: 300px; }
+    .bunker svg { max-width:180px; max-height:260px; }
+    .bunker .label { font-size:13px; padding:6px 10px; }
+
+    .flow-input { max-width: 110px; padding: 6px; font-size:13px; }
+
+    /* tighten grid spacing & padding */
+    .mills-grid { grid-template-columns: 120px repeat(6, 1fr); gap:10px; padding: calc(var(--navbar-height) + 12px) 8px 16px 8px; }
+    #saveBtn { right:12px; bottom:12px; padding:12px 16px; font-size:16px; }
+  }
+
+  /* Small phones */
+  @media (max-width:480px) {
+    :root { --navbar-height: 52px; }
+    .navbar { height: var(--navbar-height); padding:8px 10px; }
+    .navbar img { height: 38px; max-height: calc(var(--navbar-height) - 6px); margin-right:8px; }
+
+    .input-section {
+      top: calc(var(--navbar-height) + 8px);
+      left: 8px;
+      max-width: 100px;
+      padding: 6px;
+      gap: 6px;
+      border-radius: 7px;
+    }
+    .input-section label { font-size:11px; }
+    .input-section .input-box { font-size:12px; padding:6px 8px; }
+
+    /* bunkers become 2 columns so they fit and keep coal-flow inputs aligned */
+    .bunkers-grid { grid-template-columns: repeat(2, 1fr); gap:12px; padding:10px; }
+    .bunker { height: 220px; }
+    .bunker svg { max-width:120px; max-height:180px; }
+    .bunker .label { font-size:12px; padding:5px 8px; min-width:100px; }
+
+    .mills-grid { grid-template-columns: 120px repeat(6, minmax(60px, 1fr)); gap:8px; padding: calc(var(--navbar-height) + 8px) 8px 12px 8px; }
+    .flow-input { max-width: 80px; width: 100%; padding:6px; font-size:12px; }
+
+    .popup-content { width: 320px; padding:14px; }
+  }
+
+  /* Very small narrow phones */
+  @media (max-width:360px) {
+    .input-section { top: calc(var(--navbar-height) + 6px); left: 8px; max-width:92px; padding:6px; }
+    .input-section label { font-size:10px; }
+    .input-section .input-box { font-size:11px; padding:5px 6px; }
+
+    .bunker { height: 190px; }
+    .bunker svg { max-width:100px; max-height:150px; }
+    .bunker .label { font-size:11px; padding:4px 6px; min-width:90px; }
+
+    .flow-input { max-width: 64px; font-size:11px; padding:5px; }
+    #saveBtn { padding:10px 12px; font-size:14px; }
+  }
+
+   .diagram-in-grid .layout { position: relative; overflow: visible; }
+
+  .top-overlay { 
+    position: absolute;
+    inset: 0 0 0 0;
+    pointer-events: none;
+    z-index: 90;
+  }
+
+  .top-line {
+    position: absolute;
+    top: var(--bunker-top-line-distance);
+    left: var(--line-left-offset);
+    right: var(--line-right-offset);
+    height: 2px;
+    background: #000;
+  }
+
+  .arrow {
+    position: absolute;
+    width: var(--arrow-width);
+    background:  #000;
+    top: var(--bunker-top-line-distance);
+    height: var(--bunker-arrow-height);
+    transform-origin: top center;
+  }
+
+  /* small arrow head (triangle) */
+  .arrow::after {
+    content: '';
+    position: absolute;
+    left: calc(50% - 7px); /* center the triangle under the vertical bar */
+    top: 100%;
+    width: 0;
+    height: 0;
+    border-left: 7px solid transparent;
+    border-right: 7px solid transparent;
+    border-top: var(--arrow-head-size) solid  #000;
+  }
+
+  /* small-screen tweaks so it won't overlap too much */
+  @media (max-width:1100px) {
+    :root { --bunker-top-line-distance: 30px; --bunker-arrow-height:140px; }
+  }
+  @media (max-width:700px) {
+    :root { --bunker-top-line-distance: 26px; --bunker-arrow-height:110px; }
+  }
+  @media (max-width:480px) {
+    :root { --bunker-top-line-distance: 22px; --bunker-arrow-height:90px; }
+  }
+  
+</style>
+
+</head>
+<body>
+
+  <!-- Navbar kept in DOM but hidden via CSS -->
+  <div class="navbar">
+    <img src="/public/images/abhitech-logo.png" alt="Company Logo">
+    <h1>COAL BLENDING RATIO</h1>
+    <div class="nav-buttons">
+      <button onclick="window.location.href='/public/coals.html'">Go to Coals Page</button>
+      <button class="logout-btn" onclick="logoutUser()">Logout</button>
+      
+
+    </div>
+  </div>
+
+<div class="input-section">
+  <label for="bunkerCapacity">Bunker Capacity (tons):</label>
+  <input type="number" id="bunkerCapacity" class="input-box" placeholder="Enter bunker capacity" />
+
+  <label for="generation">Generation (MW):</label>
+  <input type="number" id="generation" class="input-box" placeholder="Enter generation value" />
+
+  <!-- Submit moved here for consistent placement -->
+  <div style="display:flex; gap:8px; justify-content:center; margin-top:6px;">
+    <button id="saveBtn" class="upload-btn">Submit</button>
+  </div>
+</div>
+
+
+
+  <!-- Visible Submit button (id preserved so your savePayload binds as before) -->
+  <!-- <button id="saveBtn" class="upload-btn">Submit</button> -->
+
+  <!-- Loader & PDF button (kept hidden) -->
+  <div id="loader">Loading... please wait</div>
+  <button id="downloadPDF" class="icon-btn" title="Download page as PDF">⬇️</button>
+
+  
+
+  <div class="main-container">
+    <div class="mills-grid" id="millsGrid">
+      <!-- header row (kept in DOM but hidden visually) -->
+      <div></div>
+      <div class="mill green">BUNKER 1</div>
+      <div class="mill green">BUNKER 2</div>
+      <div class="mill green">BUNKER 3</div>
+      <div class="mill green">BUNKER 4</div>
+      <div class="mill green">BUNKER 5</div>
+      <div class="mill green">BUNKER 6</div>
+      <div class="mill gcv">GCV(Kcal/kg)</div>
+      <div class="mill cost-head">Cost/MT</div>
+
+      <!-- Row 1: Coal name select & % under mills (kept but hidden) -->
+      <div class="mill">
+        <select class="dropdown" id="coalName1">
+          <option value="">Select coal</option>
+        </select>
+      </div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="0" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="1" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="2" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="3" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="4" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="5" placeholder="%"></div>
+      <div class="mill"><input type="text" id="gcvBox1" class="gcv-box" placeholder="GCV"></div>
+      <div class="mill"><input type="text" id="costBox1" class="cost-input" placeholder="Cost/MT"></div>
+
+      <!-- Row 2 (hidden) -->
+      <div class="mill">
+        <select class="dropdown" id="coalName2">
+          <option value="">Select coal</option>
+        </select>
+      </div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="2" data-mill="0" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="2" data-mill="1" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="2" data-mill="2" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="2" data-mill="3" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="2" data-mill="4" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="2" data-mill="5" placeholder="%"></div>
+      <div class="mill"><input type="text" id="gcvBox2" class="gcv-box" placeholder="GCV"></div>
+      <div class="mill"><input type="text" id="costBox2" class="cost-input" placeholder="Cost/MT"></div>
+
+      <!-- Row 3 (hidden) -->
+      <div class="mill">
+        <select class="dropdown" id="coalName3">
+          <option value="">Select coal</option>
+        </select>
+      </div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="3" data-mill="0" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="3" data-mill="1" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="3" data-mill="2" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="3" data-mill="3" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="3" data-mill="4" placeholder="%"></div>
+      <div class="mill"><input type="text" class="percentage-input" data-row="3" data-mill="5" placeholder="%"></div>
+      <div class="mill"><input type="text" id="gcvBox3" class="gcv-box" placeholder="GCV"></div>
+      <div class="mill"><input type="text" id="costBox3" class="cost-input" placeholder="Cost/MT"></div>
+
+      <!-- Row 4 (hidden) -->
+<div class="mill">
+  <select class="dropdown" id="coalName4">
+    <option value="">Select coal</option>
+  </select>
+</div>
+<div class="mill"><input type="text" class="percentage-input" data-row="4" data-mill="0" placeholder="%"></div>
+<div class="mill"><input type="text" class="percentage-input" data-row="4" data-mill="1" placeholder="%"></div>
+<div class="mill"><input type="text" class="percentage-input" data-row="4" data-mill="2" placeholder="%"></div>
+<div class="mill"><input type="text" class="percentage-input" data-row="4" data-mill="3" placeholder="%"></div>
+<div class="mill"><input type="text" class="percentage-input" data-row="4" data-mill="4" placeholder="%"></div>
+<div class="mill"><input type="text" class="percentage-input" data-row="4" data-mill="5" placeholder="%"></div>
+<div class="mill"><input type="text" id="gcvBox4" class="gcv-box" placeholder="GCV"></div>
+<div class="mill"><input type="text" id="costBox4" class="cost-input" placeholder="Cost/MT"></div>
+
+<!-- Row 5 (hidden) -->
+<div class="mill">
+  <select class="dropdown" id="coalName5">
+    <option value="">Select coal</option>
+  </select>
+</div>
+<div class="mill"><input type="text" class="percentage-input" data-row="5" data-mill="0" placeholder="%"></div>
+<div class="mill"><input type="text" class="percentage-input" data-row="5" data-mill="1" placeholder="%"></div>
+<div class="mill"><input type="text" class="percentage-input" data-row="5" data-mill="2" placeholder="%"></div>
+<div class="mill"><input type="text" class="percentage-input" data-row="5" data-mill="3" placeholder="%"></div>
+<div class="mill"><input type="text" class="percentage-input" data-row="5" data-mill="4" placeholder="%"></div>
+<div class="mill"><input type="text" class="percentage-input" data-row="5" data-mill="5" placeholder="%"></div>
+<div class="mill"><input type="text" id="gcvBox5" class="gcv-box" placeholder="GCV"></div>
+<div class="mill"><input type="text" id="costBox5" class="cost-input" placeholder="Cost/MT"></div>
+
+
+
+
+      <!-- diagram area (this is visible) -->
+
+      <div></div>
+      <div class="diagram-in-grid" style="padding:8px;">
+        <div class="layout">
+  <div class="top-overlay" aria-hidden="true">
+    <div class="top-line"></div>
+
+    <!-- arrows positioned by percentage (centers of 6 equal columns) -->
+    <div class="arrow" style="left:8.3333%;"></div>
+    <div class="arrow" style="left:25%;"></div>
+    <div class="arrow" style="left:41.6667%;"></div>
+    <div class="arrow" style="left:58.3333%;"></div>
+    <div class="arrow" style="left:75%;"></div>
+    <div class="arrow" style="left:91.6667%;"></div>
+  </div>
+          <div class="bunkers-grid">
+            <!-- six bunkers (visible and enlarged) -->
+            <div class="bunker" data-bunker="0">
+              <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet"><path d="M10 10 V100 L45 140 M55 140 L90 100 V10" /></svg>
+              <div class="label">Bunker 1</div>
+              <!-- <div class="tooltip">Loading…</div> -->
+              <button class="add-coal-btn" onclick="openCoalPopup(0)">+</button>
+            </div>
+
+            <div class="bunker" data-bunker="1">
+              <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet"><path d="M10 10 V100 L45 140 M55 140 L90 100 V10" /></svg>
+              <div class="label">Bunker 2</div>
+              <!-- <div class="tooltip">Loading…</div> -->
+              <button class="add-coal-btn" onclick="openCoalPopup(1)">+</button>
+            </div>
+
+            <div class="bunker" data-bunker="2">
+              <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet"><path d="M10 10 V100 L45 140 M55 140 L90 100 V10" /></svg>
+              <div class="label">Bunker 3</div>
+              <!-- <div class="tooltip">Loading…</div> -->
+              <button class="add-coal-btn" onclick="openCoalPopup(2)">+</button>
+            </div>
+
+            <div class="bunker" data-bunker="3">
+              <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet"><path d="M10 10 V100 L45 140 M55 140 L90 100 V10" /></svg>
+              <div class="label">Bunker 4</div>
+              <!-- <div class="tooltip">Loading…</div> -->
+              <button class="add-coal-btn" onclick="openCoalPopup(3)">+</button>
+            </div>
+
+            <div class="bunker" data-bunker="4">
+              <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet"><path d="M10 10 V100 L45 140 M55 140 L90 100 V10" /></svg>
+              <div class="label">Bunker 5</div>
+              <!-- <div class="tooltip">Loading…</div> -->
+              <button class="add-coal-btn" onclick="openCoalPopup(4)">+</button>
+            </div>
+
+            <div class="bunker" data-bunker="5">
+              <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet"><path d="M10 10 V100 L45 140 M55 140 L90 100 V10" /></svg>
+              <div class="label">Bunker 6</div>
+              <!-- <div class="tooltip">Loading…</div> -->
+              <button class="add-coal-btn" onclick="openCoalPopup(5)">+</button>
+            </div>
+          </div>
+        </div>
+      </div>
+      <div ></div>
+      <div ></div>
+
+      
+
+      <!-- Coal Flow row (visible) -->
+      <div class="mill coal-flow">Coal Flow(TPH)</div>
+      <div class="mill"><input type="text" class="flow-input" data-mill="0" placeholder="TPH"></div>
+      <div class="mill"><input type="text" class="flow-input" data-mill="1" placeholder="TPH"></div>
+      <div class="mill"><input type="text" class="flow-input" data-mill="2" placeholder="TPH"></div>
+      <div class="mill"><input type="text" class="flow-input" data-mill="3" placeholder="TPH"></div>
+      <div class="mill"><input type="text" class="flow-input" data-mill="4" placeholder="TPH"></div>
+      <div class="mill"><input type="text" class="flow-input" data-mill="5" placeholder="TPH"></div>
+      <div></div>
+      <div></div>
+      
+      <!-- AFT row (kept in DOM but hidden) -->
+      <div class="mill aft-head">AFT(°C)</div>
+      <div class="mill aft" data-mill="0">--</div>
+      <div class="mill aft" data-mill="1">--</div>
+      <div class="mill aft" data-mill="2">--</div>
+      <div class="mill aft" data-mill="3">--</div>
+      <div class="mill aft" data-mill="4">--</div>
+      <div class="mill aft" data-mill="5">--</div>
+      <div></div>
+      <div></div>
+
+      <!-- Next Blend (kept in DOM but hidden) -->
+      <div class="mill">Next Coal Blend</div>
+      <div class="mill"><input type="text" id="nextBlend0" class="next-blend-box" readonly></div>
+      <div class="mill"><input type="text" id="nextBlend1" class="next-blend-box" readonly></div>
+      <div class="mill"><input type="text" id="nextBlend2" class="next-blend-box" readonly></div>
+      <div class="mill"><input type="text" id="nextBlend3" class="next-blend-box" readonly></div>
+      <div class="mill"><input type="text" id="nextBlend4" class="next-blend-box" readonly></div>
+      <div class="mill"><input type="text" id="nextBlend5" class="next-blend-box" readonly></div>
+      <div></div>
+      <div></div>
+
+    </div>
+  </div>
+
+  <!-- Popup used to add a coal layer to a specific bunker -->
+  <div id="coalPopup" class="popup hidden" aria-hidden="true">
+    <div class="popup-content" role="dialog" aria-modal="true">
+      <h3>Add coal to bunker</h3>
+      <div class="popup-row">
+        <label for="popupCoal">Coal</label>
+        <select id="popupCoal"><option value="">Loading…</option></select>
+      </div>
+      <div class="popup-row">
+        <label for="popupPercent">Percent</label>
+        <input id="popupPercent" type="number" min="0" max="100" placeholder="%" />
+      </div>
+<div class="popup-row" style="margin-top:6px;">
+  <label>Note</label>
+  <div style="font-size:13px;color:#666">You can add up to 5 layers per bunker (bottom → middle → top → ...). This action fills the first available layer.</div>
+</div>
+
+      <div class="popup-actions">
+        <button class="btn btn-clear" id="clearLastBtn" title="Remove last added layer">Clear last</button>
+        <button class="btn btn-cancel" id="cancelPopup">Cancel</button>
+        <button class="btn btn-save" id="savePopup">Save</button>
+      </div>
+      <input type="hidden" id="popupBunkerIndex" value="">
+    </div>
+  </div>
+
+  <!-- ---------- Calculation script (keeps all existing logic) ---------- -->
+  <script>
+window.NUM_COAL_ROWS = window.NUM_COAL_ROWS || 5;
+ // ← change this to 4/6/... as needed
+const DEFAULT_COAL_COLORS = ["#f39c12","#3498db","#2ecc71","#ef4444","#8b5cf6","#14b8a6","#f97316","#06b6d4"];
+
+function calcAFT(ox){
+  const total = Object.values(ox).reduce((a,b)=>a+b,0);
+  if(total === 0) return 0;
+  const sum = (ox["SiO2"]||0) + (ox["Al2O3"]||0);
+  let aft = 0;
+  if(sum < 55){
+    aft = 1245 + (1.1*(ox["SiO2"]||0)) + (0.95*(ox["Al2O3"]||0)) - (2.5*(ox["Fe2O3"]||0)) - (2.98*(ox["CaO"]||0)) - (4.5*(ox["MgO"]||0)) - (7.89*((ox["Na2O"]||0) + (ox["K2O"]||0))) - (1.7*(ox["SO3"]||0)) - (0.63*(ox["TiO2"]||0));
+  } else if(sum < 75){
+    aft = 1323 + (1.45*(ox["SiO2"]||0)) + (0.683*(ox["Al2O3"]||0)) - (2.39*(ox["Fe2O3"]||0)) - (3.1*(ox["CaO"]||0)) - (4.5*(ox["MgO"]||0)) - (7.49*((ox["Na2O"]||0) + (ox["K2O"]||0))) - (2.1*(ox["SO3"]||0)) - (0.63*(ox["TiO2"]||0));
+  } else {
+    aft = 1395 + (1.2*(ox["SiO2"]||0)) + (0.9*(ox["Al2O3"]||0)) - (2.5*(ox["Fe2O3"]||0)) - (3.1*(ox["CaO"]||0)) - (4.5*(ox["MgO"]||0)) - (7.2*((ox["Na2O"]||0) + (ox["K2O"]||0))) - (1.7*(ox["SO3"]||0)) - (0.63*(ox["TiO2"]||0));
+  }
+  return Number(aft);
+}
+
+function getCoalObjForRow(r){
+  const sel = document.getElementById(`coalName${r}`);
+  if(!sel || !sel.value) return null;
+  const db = window.COAL_DB || [];
+  let found = db.find(c => String(c._id) === String(sel.value));
+  if(!found) found = db.find(c => String(c.coal || '').toLowerCase() === String(sel.value).toLowerCase());
+  return found || null;
+}
+
+function formatHMS(sec) {
+  const s = Math.max(0, Math.floor(sec));
+  const hrs = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  return `${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+}
+
+const bunkerTimers = new Array(6).fill(null);
+let lastGlobalBunkerCapacity = parseFloat(document.getElementById('bunkerCapacity')?.value) || 0;
+
+function clearBunkerTimer(i){
+  const t = bunkerTimers[i];
+  if(t && t.intervalId) clearInterval(t.intervalId);
+  bunkerTimers[i] = null;
+}
+function arraysEqualRounded(a,b){
+  if(!a && !b) return true;
+  if(!a || !b) return false;
+  if(a.length !== b.length) return false;
+  for(let i=0;i<a.length;i++){
+    if(Math.abs((a[i]||0) - (b[i]||0)) > 1) return false;
+  }
+  return true;
+}
+
+function updateBunkerColors(){
+  const db = window.COAL_DB || [];
+  const rowColors = new Array(NUM_COAL_ROWS).fill(null);
+
+  // pick colors per row (1..N)
+  for(let r=1;r<=NUM_COAL_ROWS;r++){
+    const sel = document.getElementById(`coalName${r}`);
+    let color = DEFAULT_COAL_COLORS[(r-1) % DEFAULT_COAL_COLORS.length];
+    if(sel && sel.value){
+      const found = db.find(c => String(c._id) === String(sel.value) || String(c.coal||'').toLowerCase() === String(sel.value).toLowerCase());
+      if(found && (found.color || found.colour || found.hex)) color = found.color || found.colour || found.hex;
+    }
+    rowColors[r-1] = color;
+    if(sel){
+      sel.style.background = color;
+      try{
+        const c = color.replace('#','');
+        const rch = parseInt(c.substring(0,2),16), gch = parseInt(c.substring(2,4),16), bch = parseInt(c.substring(4,6),16);
+        const lum = 0.2126*rch + 0.7152*gch + 0.0722*bch;
+        sel.style.color = (lum < 140) ? '#fff' : '#111';
+      }catch(e){}
+    }
+  }
+
+  // update each bunker svg by stacking rows bottom->top (row NUM as bottom)
+  const svgWidth = 100, svgHeight = 150, topY = 10, midY = 100, bottomY = 140, usableH = bottomY - topY;
+  const outlinePath = `M10 ${topY} L10 ${midY} L45 ${bottomY} L55 ${bottomY} L90 ${midY} L90 ${topY} Z`;
+
+  const bunkers = document.querySelectorAll('.bunker');
+  bunkers.forEach((bunkerEl, bIndex) => {
+    const svg = bunkerEl.querySelector('svg');
+    if(!svg) return;
+
+    // collect percentages for rows 1..N, then create bottom->top array
+    const fullHeights = [];
+    const pctVals = []; // keep raw pct for data attribute
+    for(let r = NUM_COAL_ROWS; r >= 1; r--){
+      const p = parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${bIndex}"]`)?.value) || 0;
+      pctVals.push(p);
+      fullHeights.push((Math.max(0, Math.min(100, p)) / 100) * usableH);
+    }
+
+    const clipId = `clip-bunker-${bIndex}`;
+    // Start building new inner HTML - include clipPath
+    let inner = `<defs><clipPath id="${clipId}"><path d="${outlinePath}" /></clipPath></defs>`;
+
+    const timer = bunkerTimers[bIndex];
+
+    let cum = 0;
+    for(let layerIdx=0; layerIdx<fullHeights.length; layerIdx++){
+      const fullH = fullHeights[layerIdx];
+      if(fullH <= 0) { cum += 0; continue; }
+      let visibleH = fullH;
+      if(timer){
+        if(layerIdx < timer.currentLayer) {
+          visibleH = 0;
+        } else if(layerIdx === timer.currentLayer) {
+          const totalForLayer = timer.layersSeconds[layerIdx] || 1;
+          const remaining = timer.layerRemaining || 0;
+          visibleH = fullH * Math.max(0, remaining / Math.max(1, totalForLayer));
+        } else {
+          visibleH = fullH;
+        }
+      }
+      const y = bottomY - (cum + visibleH);
+      // compute row index corresponding to this layerIdx
+      // fullHeights was built with r descending (NUM -> 1) so:
+      const rowIndex = NUM_COAL_ROWS - layerIdx; // 1..NUM_COAL_ROWS
+      const pct = pctVals[layerIdx] || 0;
+      cum += visibleH;
+      const colorIndex = (NUM_COAL_ROWS - 1 - layerIdx);
+      const fillColor = rowColors[colorIndex] || DEFAULT_COAL_COLORS[colorIndex % DEFAULT_COAL_COLORS.length];
+      if(visibleH > 0){
+        // add data attributes and inline handlers (call global window functions)
+        inner += `<rect x="0" y="${y}" width="${svgWidth}" height="${visibleH}" fill="${fillColor}" clip-path="url(#${clipId})" data-row="${rowIndex}" data-mill="${bIndex}" data-pct="${pct}" onmouseenter="window.showCoalRectTooltip && window.showCoalRectTooltip(event, ${rowIndex}, ${bIndex})" onmousemove="window.moveCoalRectTooltip && window.moveCoalRectTooltip(event)" onmouseleave="window.hideCoalRectTooltip && window.hideCoalRectTooltip()" />`;
+      }
+    }
+
+    inner += `<path d="M10 ${topY} L10 ${midY}" stroke="black" fill="none" stroke-width="2" />`;
+    inner += `<path d="M90 ${topY} L90 ${midY}" stroke="black" fill="none" stroke-width="2" />`;
+    inner += `<path d="M10 ${midY} L45 ${bottomY}" stroke="black" fill="none" stroke-width="2" />`;
+    inner += `<path d="M90 ${midY} L55 ${bottomY}" stroke="black" fill="none" stroke-width="2" />`;
+
+    svg.setAttribute('viewBox', `0 0 ${svgWidth} ${svgHeight}`);
+    svg.innerHTML = inner;
+
+    // update layers info tooltip text (if present)
+    const infoEl = document.getElementById(`layersInfo${bIndex}`);
+    if(infoEl){
+      const layers = [];
+      const db = window.COAL_DB || [];
+      // show rows bottom->top with percentages
+      for(let r = NUM_COAL_ROWS; r >= 1; r--){
+        const pct = parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${bIndex}"]`)?.value) || 0;
+        if(pct > 0){
+          const sel = document.getElementById(`coalName${r}`);
+          let text = `${pct}%`;
+          if(sel && sel.value){
+            const found = db.find(c => String(c._id) === String(sel.value));
+            if(found) text = `${found.coal || found.name || 'coal'} — ${pct}%`;
+          }
+          layers.push(text);
+        }
+      }
+      infoEl.innerText = layers.length? layers.join(' | ') : 'No layers';
+    }
+  });
+}
+
+
+function computeLayerSeconds(b){
+  const bunkerCapacity = parseFloat(document.getElementById('bunkerCapacity')?.value) || 0;
+  const flow = parseFloat(document.querySelector(`.flow-input[data-mill="${b}"]`)?.value) || 0;
+
+  // build array bottom->top (row NUM -> row 1)
+  const pctArr = [];
+  for(let r = NUM_COAL_ROWS; r >= 1; r--){
+    const p = parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${b}"]`)?.value) || 0;
+    pctArr.push(p);
+  }
+
+  const seconds = pctArr.map(p => {
+    if(flow <= 0 || bunkerCapacity <= 0 || p <= 0) return 0;
+    const hours = (p / 100.0) * bunkerCapacity / flow;
+    return hours * 3600;
+  });
+  return seconds;
+}
+
+function startOrUpdateBunkerTimer(b, layerSeconds, flow, bunkerCapacity){
+  const normalized = layerSeconds.map(s => Math.max(0, Math.round(s)));
+  const existing = bunkerTimers[b];
+  const newCfg = { layersSeconds: normalized.slice(), flow: flow||0, bunkerCapacity: bunkerCapacity||0 };
+
+  if(existing && existing.intervalId && existing.lastConfig && arraysEqualRounded(existing.lastConfig.layersSeconds, newCfg.layersSeconds) && Math.abs((existing.lastConfig.flow||0)-(newCfg.flow||0))<1e-6 && Math.abs((existing.lastConfig.bunkerCapacity||0)-(newCfg.bunkerCapacity||0))<1e-6){
+    return;
+  }
+
+  clearBunkerTimer(b);
+  let startIndex = 0;
+  while(startIndex < normalized.length && (normalized[startIndex] || 0) <= 0) startIndex++;
+  if(startIndex >= normalized.length){
+    updateNextBlendDisplay(b, 0);
+    updateBunkerColors();
+    return;
+  }
+
+  const timerObj = {
+    layersSeconds: normalized,
+    currentLayer: startIndex,
+    layerRemaining: Math.max(0, normalized[startIndex] || 0),
+    lastConfig: newCfg,
+    intervalId: null
+  };
+
+  updateBunkerColors();
+  updateNextBlendDisplay(b, timerObj.layerRemaining);
+
+  timerObj.intervalId = setInterval(() => {
+    if(timerObj.layerRemaining > 0){
+      timerObj.layerRemaining--;
+    }
+    if(timerObj.layerRemaining <= 0){
+      timerObj.currentLayer++;
+      if(timerObj.currentLayer >= timerObj.layersSeconds.length){
+        clearBunkerTimer(b);
+        updateNextBlendDisplay(b, 0);
+        updateBunkerColors();
+        return;
+      }
+      timerObj.layerRemaining = Math.max(0, timerObj.layersSeconds[timerObj.currentLayer] || 0);
+      updateBunkerColors();
+      updateNextBlendDisplay(b, timerObj.layerRemaining);
+      return;
+    }
+    updateBunkerColors();
+    updateNextBlendDisplay(b, timerObj.layerRemaining);
+  }, 1000);
+
+  bunkerTimers[b] = timerObj;
+}
+
+function updateNextBlendDisplay(b, seconds){
+  const el = document.getElementById(`nextBlend${b}`);
+  if(!el) return;
+  if(!isFinite(seconds) || seconds <= 0){ el.value = '--'; el.dataset.seconds = 0; return; }
+  el.value = formatHMS(seconds);
+  el.dataset.seconds = Math.max(0, Math.floor(seconds));
+}
+
+function getSingleBunkerCapacity(){
+  const el = document.getElementById('bunkerCapacity');
+  if(!el) return 0;
+  return parseFloat(el.value) || 0;
+}
+
+function calculateBlended(){
+  // collect gcv and coal objects for rows 1..N
+  const gcvInputs = [];
+  const coalObjs = [];
+  for(let r=1;r<=NUM_COAL_ROWS;r++){
+    const gcvEl = document.getElementById(`gcvBox${r}`);
+    gcvInputs[r] = (gcvEl && gcvEl.value.trim()!=='') ? (parseFloat(gcvEl.value)||0) : null;
+    coalObjs[r] = getCoalObjForRow(r);
+  }
+  // determine gcv numeric per row (prefer typed input, else db value)
+  const gcvVals = [];
+  for(let r=1;r<=NUM_COAL_ROWS;r++){
+    const explicit = gcvInputs[r];
+    if(explicit !== null) gcvVals[r] = explicit;
+    else gcvVals[r] = (coalObjs[r] && (coalObjs[r].gcv||coalObjs[r].GCV)) ? (parseFloat(coalObjs[r].gcv||coalObjs[r].GCV)||0) : 0;
+  }
+
+  const oxKeys = ["SiO2","Al2O3","Fe2O3","CaO","MgO","Na2O","K2O","SO3","TiO2"];
+  let totalFlow = 0, weightedGCV = 0, weightedAFT = 0, contributedAFTFlow = 0;
+
+  const bunkerCapacity = getSingleBunkerCapacity();
+  const flowVals = [];
+
+  const capacityChanged = Math.abs((bunkerCapacity || 0) - (lastGlobalBunkerCapacity || 0)) > 1e-6;
+  if(capacityChanged) lastGlobalBunkerCapacity = bunkerCapacity;
+
+  for(let m=0;m<6;m++){
+    // percentages for this mill per row (1..N)
+    const p = [];
+    for(let r=1;r<=NUM_COAL_ROWS;r++){
+      p[r] = parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${m}"]`)?.value) || 0;
+    }
+
+    // blended GCV
+    let blendedGCV = 0;
+    for(let r=1;r<=NUM_COAL_ROWS;r++){
+      blendedGCV += (gcvVals[r] || 0) * (p[r]/100);
+    }
+
+    // blended ox
+    const ox = {}; let oxTotal = 0;
+    oxKeys.forEach(k=>{
+      let blended = 0;
+      for(let r=1;r<=NUM_COAL_ROWS;r++){
+        const c = coalObjs[r];
+        const val = c ? (c[k] !== undefined ? (parseFloat(c[k])||0) : 0) : 0;
+        blended += val * (p[r]/100);
+      }
+      ox[k] = blended; oxTotal += blended;
+    });
+
+    const aftCell = document.querySelector(`.aft[data-mill="${m}"]`);
+    if(aftCell){
+      if(oxTotal === 0) aftCell.innerText = '--';
+      else { const aftVal = calcAFT(ox); aftCell.innerText = isFinite(aftVal) ? Number(aftVal).toFixed(2) : '--'; }
+    }
+
+    const flow = parseFloat(document.querySelector(`.flow-input[data-mill="${m}"]`)?.value) || 0;
+    flowVals[m] = flow;
+    if(flow > 0){
+      totalFlow += flow;
+      weightedGCV += (flow * blendedGCV);
+      const aftText = aftCell ? aftCell.innerText : '--';
+      const aftValNumeric = (aftText !== '--') ? (parseFloat(aftText)||0) : null;
+      if(aftValNumeric !== null){ weightedAFT += (flow * aftValNumeric); contributedAFTFlow += flow; }
+    }
+  }
+
+  // timers for each bunker based on newly computed layers for N rows
+  for(let m=0;m<6;m++){
+    const layersSec = computeLayerSeconds(m);
+    const flow = flowVals[m] || 0;
+    const existing = bunkerTimers[m];
+    const existingArr = existing ? existing.layersSeconds : null;
+    if(capacityChanged){
+      if(layersSec.some(s => s > 1)) startOrUpdateBunkerTimer(m, layersSec, flow, bunkerCapacity);
+      else clearBunkerTimer(m);
+    } else {
+      const existingCfg = existing ? existing.lastConfig : null;
+      if(!existingCfg || !arraysEqualRounded(existingCfg.layersSeconds, layersSec) || Math.abs((existingCfg.flow||0)-flow) > 1e-6){
+        if(layersSec.some(s => s > 1)) startOrUpdateBunkerTimer(m, layersSec, flow, bunkerCapacity);
+        else clearBunkerTimer(m);
+      }
+    }
+  }
+
+  updateBunkerColors();
+
+  const avgGCV = totalFlow > 0 ? (weightedGCV / totalFlow) : 0;
+  const avgAFT = contributedAFTFlow > 0 ? (weightedAFT / contributedAFTFlow) : null;
+
+  const hiddenTotalFlow = document.querySelector('#summaryHidden #totalFlow') || document.getElementById('totalFlow');
+  if(hiddenTotalFlow) hiddenTotalFlow.innerText = Number(totalFlow).toFixed(2);
+  const avgGCVEl = document.getElementById('avgGCV'); if(avgGCVEl) avgGCVEl.innerText = totalFlow>0 ? Number(avgGCV).toFixed(2) : 0;
+  const avgAFTEl = document.getElementById('avgAFT'); if(avgAFTEl) avgAFTEl.innerText = (avgAFT!==null) ? Number(avgAFT).toFixed(2) : '--';
+
+  const generationVal = parseFloat(document.getElementById('generation')?.value) || 0;
+  const heatRateEl = document.getElementById('heatRate');
+  if(generationVal > 0 && totalFlow > 0){
+    const heatRate = (totalFlow * avgGCV) / generationVal;
+    if(heatRateEl) heatRateEl.innerText = Number(heatRate).toFixed(2);
+  } else { if(heatRateEl) heatRateEl.innerText = '--'; }
+
+  // cost: compute per-row qty & cost same as before but for N rows
+  function getCoalQty(rowIndex){ let total=0; for(let m=0;m<6;m++) total+= parseFloat(document.querySelector(`.percentage-input[data-row="${rowIndex}"][data-mill="${m}"]`)?.value) || 0; return total; }
+
+  let totalCost = 0, totalQty = 0;
+  for(let r=1;r<=NUM_COAL_ROWS;r++){
+    const costVal = (document.getElementById(`costBox${r}`)?.value.trim()!=='') ? (parseFloat(document.getElementById(`costBox${r}`).value)||0) : ((coalObjs[r] && (coalObjs[r].cost||coalObjs[r].Cost)) ? (parseFloat(coalObjs[r].cost||coalObjs[r].Cost)||0) : 0);
+    const qty = getCoalQty(r);
+    totalCost += (qty * costVal);
+    totalQty += qty;
+  }
+  const costRate = totalQty>0 ? (totalCost/totalQty) : 0;
+  const costRateEl = document.getElementById('COSTRATE'); if(costRateEl) costRateEl.innerText = Number(costRate).toFixed(2);
+}
+
+function validateMillPercentages(){
+  for(let m=0;m<6;m++){
+    let hasPercent=false;
+    for(let r=1;r<=NUM_COAL_ROWS;r++){ const v=parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${m}"]`)?.value)||0; if(v>0){ hasPercent=true; break; } }
+    const flow = parseFloat(document.querySelector(`.flow-input[data-mill="${m}"]`)?.value)||0;
+    const header = Array.from(document.querySelectorAll('.mills-grid > .mill')).find(el => el.textContent.trim().startsWith(`BUNKER ${m+1}`));
+    if(!header) continue;
+    header.classList.remove('red','green');
+    if(hasPercent && flow > 0) header.classList.add('red'); else header.classList.add('green');
+  }
+}
+
+function calculateBlendedForBunker(millIndex){
+  const bunkerCapacity = parseFloat(document.getElementById('bunkerCapacity')?.value)||0;
+  const flow = parseFloat(document.querySelector(`.flow-input[data-mill="${millIndex}"]`)?.value) || 0;
+  const layersSeconds = computeLayerSeconds(millIndex);
+  const existing = bunkerTimers[millIndex];
+  const existingArr = existing ? existing.layersSeconds : null;
+  if(!arraysEqualRounded(existingArr, layersSeconds)){
+    if(layersSeconds.some(s=>s>1)) startOrUpdateBunkerTimer(millIndex, layersSeconds, flow, bunkerCapacity);
+    else clearBunkerTimer(millIndex);
+  }
+  updateBunkerColors();
+}
+
+function attachAutoUpdate(){
+  document.querySelectorAll('.percentage-input').forEach(inp=>{
+    inp.dataset.prev = inp.value || '';
+    inp.addEventListener('focus', function(){ this.dataset.prev = this.value; });
+    inp.addEventListener('input', function(){
+      const millIndex = Number(this.dataset.mill);
+      let sum = 0;
+      for(let r=1;r<=NUM_COAL_ROWS;r++) sum += parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${millIndex}"]`)?.value) || 0;
+      if(sum > 100){ this.value = this.dataset.prev || ''; alert(`Total for Mill ${String.fromCharCode(65+millIndex)} cannot exceed 100%.`); calculateBlended(); validateMillPercentages(); updateBunkerColors(); return; }
+      this.dataset.prev = this.value;
+      calculateBlendedForBunker(millIndex);
+      calculateBlended();
+      validateMillPercentages();
+      updateBunkerColors();
+    });
+  });
+
+  document.querySelectorAll('.flow-input').forEach(fi=>{
+    fi.addEventListener('input', function(){
+      const m = Number(this.dataset.mill);
+      calculateBlendedForBunker(m);
+      calculateBlended();
+      validateMillPercentages();
+      updateBunkerColors();
+    });
+  });
+
+  document.querySelectorAll('#bunkerCapacity, #generation, .cost-input, .gcv-box, .dropdown').forEach(el=>{
+    el.addEventListener('input', ()=>{
+      calculateBlended();
+      validateMillPercentages();
+      updateBunkerColors();
+    });
+    el.addEventListener('change', ()=>{
+      calculateBlended();
+      validateMillPercentages();
+      updateBunkerColors();
+    });
+  });
+
+  calculateBlended();
+  validateMillPercentages();
+  updateBunkerColors();
+}
+
+/* ---------- Boot ---------- */
+document.addEventListener('DOMContentLoaded', function(){
+  attachAutoUpdate();
+  const saveBtn = document.getElementById('saveBtn');
+  if(saveBtn){
+    if(typeof savePayload === 'function') saveBtn.addEventListener('click', savePayload);
+    else if(typeof window.saveBlend === 'function') saveBtn.addEventListener('click', savePayload);
+  }
+
+  const pdfBtn = document.getElementById('downloadPDF');
+  if(pdfBtn) pdfBtn.addEventListener('click', function(){
+    try {
+      const { jsPDF } = window.jspdf;
+      html2canvas(document.body, { scale:2, useCORS:true }).then(canvas=>{
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('p','mm','a4');
+        const pageW = pdf.internal.pageSize.getWidth();
+        const imgW = pageW;
+        const imgH = (canvas.height * imgW) / canvas.width;
+        let position=0; let heightLeft=imgH;
+        pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH);
+        heightLeft -= pdf.internal.pageSize.getHeight();
+        while(heightLeft>0){ position = heightLeft - imgH; pdf.addPage(); pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH); heightLeft -= pdf.internal.pageSize.getHeight(); }
+        pdf.save('Coal_Blending_Ratio.pdf');
+      });
+    } catch(e){ console.error(e); alert('PDF export failed (see console).'); }
+  });
+});
+  </script>
+
+  <!-- ---------- UI helper script (popup + mapping into hidden inputs) ---------- -->
+  <!-- Keep all scripts & logic unchanged (calculations rely on existing IDs/classes) -->
+<script>
+/* Updated popup/helper script that supports dynamic NUM_COAL_ROWS (default fallback = 5) */
+
+console.log('[coal-helper] script loaded');
+
+/* Determine number of rows in DOM / from other scripts:
+   tries: global constant NUM_COAL_ROWS, then window.NUM_COAL_ROWS, else fallback 5.
+*/
+function getNumRows(){
+  if(typeof NUM_COAL_ROWS !== 'undefined' && Number.isFinite(Number(NUM_COAL_ROWS))) return Number(NUM_COAL_ROWS);
+  if(typeof window.NUM_COAL_ROWS !== 'undefined' && Number.isFinite(Number(window.NUM_COAL_ROWS))) return Number(window.NUM_COAL_ROWS);
+  return 5; // safe fallback
+}
+
+function buildOptionsFromDB(db){
+  if(!db || !Array.isArray(db)) return '<option value="">No data</option>';
+  return ['<option value="">Select coal</option>'].concat(db.map(c=>{
+    const id = c._id || c.id || c._key || c.coal || c.name;
+    const label = c.coal || c.name || String(id || '');
+    return `<option value="${String(id)}">${String(label)}</option>`;
+  })).join('');
+}
+
+async function ensureCoalDB(timeout = 3000) {
+  const start = Date.now();
+  while(Date.now() - start < timeout){
+    if(Array.isArray(window.COAL_DB)) { return window.COAL_DB; }
+    if(Array.isArray(window.COAL_LIST)) { window.COAL_DB = window.COAL_LIST; return window.COAL_DB; }
+    await new Promise(r => setTimeout(r, 150));
+  }
+  // fallback fetch attempts
+  const endpoints = ['/api/coals','/api/coal','/api/coal/list','/api/coal/all','/api/coalnames'];
+  for(const ep of endpoints){
+    try{
+      const res = await fetch(ep, { credentials: 'same-origin' });
+      if(!res.ok) continue;
+      const json = await res.json();
+      if(Array.isArray(json)){ window.COAL_DB = json; return window.COAL_DB; }
+      if(json && Array.isArray(json.data)){ window.COAL_DB = json.data; return window.COAL_DB; }
+      // also handle { coals: [...] }
+      if(json && Array.isArray(json.coals)){ window.COAL_DB = json.coals; return window.COAL_DB; }
+    }catch(e){}
+  }
+  window.COAL_DB = window.COAL_DB || [];
+  return window.COAL_DB;
+}
+
+async function populateHiddenDropdownsAndPopup(){
+  const db = await ensureCoalDB();
+  const optsHtml = buildOptionsFromDB(db);
+  const N = getNumRows();
+
+  function setSelectOptionsPreserve(selectEl, html){
+    if(!selectEl) return;
+    const prev = selectEl.value;
+    selectEl.innerHTML = html;
+    if(prev){
+      const exists = Array.from(selectEl.options).some(o => String(o.value) === String(prev));
+      if(exists) selectEl.value = prev;
+    }
+  }
+
+  // set options for each hidden select coalName1..coalNameN
+  for(let r=1; r<=N; r++){
+    const sel = document.getElementById('coalName' + r);
+    if(!sel) continue;
+    setSelectOptionsPreserve(sel, optsHtml);
+  }
+
+  // popup select
+  const popup = document.getElementById('popupCoal');
+  if(popup) popup.innerHTML = optsHtml;
+
+  console.log('[coal-helper] dropdowns & popup populated; counts: db=', (db && db.length) || 0, 'rows=', N);
+}
+
+/* Try to find coal by id or name from window.COAL_DB */
+function getCoalByIdOrName(idOrName){
+  const db = window.COAL_DB || window.COAL_LIST || [];
+  if(!idOrName) return null;
+  let found = db.find(c => String(c._id) === String(idOrName) || String(c.id) === String(idOrName));
+  if(found) return found;
+  found = db.find(c => String((c.coal||c.name||'')).toLowerCase() === String(idOrName).toLowerCase());
+  return found || null;
+}
+
+/* Find first available row to fill for a bunker:
+   search from top index (N) down to 1 and return the first empty slot.
+*/
+function findFirstAvailableRowForBunker(bunkerIndex){
+  const N = getNumRows();
+  for(let r = N; r >= 1; r--){
+    const el = document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${bunkerIndex}"]`);
+    const val = parseFloat(el?.value) || 0;
+    if(!val || val <= 0) return r;
+  }
+  return null;
+}
+
+/* Find the last filled row for a bunker:
+   returns the highest-index row that currently has >0% (topmost filled).
+*/
+function findLastFilledRowForBunker(bunkerIndex){
+  const N = getNumRows();
+  for(let r = N; r >= 1; r--){
+    const el = document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${bunkerIndex}"]`);
+    const val = parseFloat(el?.value) || 0;
+    if(val > 0) return r;
+  }
+  return null;
+}
+
+/* open popup for bunker index */
+async function openCoalPopup(bunkerIndex){
+  await populateHiddenDropdownsAndPopup();
+  const popup = document.getElementById('coalPopup');
+  if(!popup) return;
+  document.getElementById('popupBunkerIndex').value = String(bunkerIndex);
+  document.getElementById('popupPercent').value = '';
+  const popupCoal = document.getElementById('popupCoal');
+  if(popupCoal) popupCoal.value = '';
+  const last = findLastFilledRowForBunker(bunkerIndex);
+  document.getElementById('clearLastBtn').style.display = last ? 'inline-block' : 'none';
+  // update the note text (optional dynamic update)
+  const noteDiv = document.querySelector('#coalPopup .popup-row:nth-child(3) div');
+  if(noteDiv){
+    const N = getNumRows();
+    noteDiv.textContent = `You can add up to ${N} layers per bunker (bottom → middle → top → ...). This action fills the first available layer.`;
+  }
+  popup.classList.remove('hidden');
+  popup.setAttribute('aria-hidden','false');
+}
+
+/* close popup */
+function closeCoalPopup(){
+  const popup = document.getElementById('coalPopup');
+  if(!popup) return;
+  popup.classList.add('hidden');
+  popup.setAttribute('aria-hidden','true');
+}
+
+/* Save selection into hidden selects & percentage inputs */
+/* Save selection into hidden selects & percentage inputs (fixed: store per-cell, not global) */
+function saveCoalSelection() {
+  try {
+    const bunkerIndex = Number(document.getElementById('popupBunkerIndex').value);
+    const coalId = document.getElementById('popupCoal').value;
+    const percentRaw = document.getElementById('popupPercent').value;
+    const percent = Number(percentRaw);
+    const N = getNumRows();
+
+    if (!coalId) { alert('Please select a coal'); return; }
+    if (!isFinite(percent) || percent <= 0) { alert('Please enter a valid percentage greater than 0'); return; }
+
+    const row = findFirstAvailableRowForBunker(bunkerIndex);
+    if (!row) { alert(`All ${N} layers for this bunker are already used. Clear one before adding.`); return; }
+
+    const sel = document.getElementById(`coalName${row}`);
+    if (!sel) { alert('Internal error: hidden select not found.'); return; }
+
+    const coalObj = getCoalByIdOrName(coalId);
+
+    // Add option to the row select if it doesn't already exist (but DO NOT set sel.value)
+    if (!Array.from(sel.options).some(o => String(o.value) === String(coalId))) {
+      const opt = document.createElement('option');
+      opt.value = coalId;
+      opt.text = coalObj ? (coalObj.coal || coalObj.name || String(coalId)) : String(coalId);
+      sel.appendChild(opt);
+    }
+
+    // Store selection per-cell (row, bunkerIndex)
+    // Prefer using global helper setCellCoal (exists in /public/input.js). If not present, create hidden inputs manually.
+    if (typeof setCellCoal === 'function') {
+      setCellCoal(row, bunkerIndex, coalId);
+    } else {
+      // fallback: create hidden inputs with the same ids your other code expects
+      function ensureHiddenInputLocal(id) {
+        var el = document.getElementById(id);
+        if (!el) {
+          el = document.createElement('input');
+          el.type = 'hidden';
+          el.id = id;
+          document.body.appendChild(el);
+        }
+        return el;
+      }
+      ensureHiddenInputLocal(`coal_cell_r${row}_m${bunkerIndex}`).value = coalId;
+      if (coalObj) {
+        ensureHiddenInputLocal(`gcv_cell_r${row}_m${bunkerIndex}`).value = coalObj.gcv || '';
+        ensureHiddenInputLocal(`cost_cell_r${row}_m${bunkerIndex}`).value = coalObj.cost || '';
+      } else {
+        ensureHiddenInputLocal(`gcv_cell_r${row}_m${bunkerIndex}`).value = '';
+        ensureHiddenInputLocal(`cost_cell_r${row}_m${bunkerIndex}`).value = '';
+      }
+    }
+
+    // Also set row-level gcv/cost fields if the row currently has none (keeps UI sensible)
+    if (coalObj) {
+      const gcvEl = document.getElementById('gcvBox' + row);
+      const costEl = document.getElementById('costBox' + row);
+      if (gcvEl && (!gcvEl.value || String(gcvEl.value).trim() === '')) gcvEl.value = coalObj.gcv || '';
+      if (costEl && (!costEl.value || String(costEl.value).trim() === '')) costEl.value = coalObj.cost || '';
+    }
+
+    // set percentage in the found row for the bunker
+    const pctInput = document.querySelector(`.percentage-input[data-row="${row}"][data-mill="${bunkerIndex}"]`);
+    if (pctInput) {
+      // validate sum for bunker
+      let sum = 0;
+      for (let r = 1; r <= N; r++) {
+        sum += parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${bunkerIndex}"]`)?.value) || 0;
+      }
+      if (sum + percent > 100) {
+        alert(`Adding ${percent}% would exceed 100% for this bunker. Current sum is ${sum}%.`);
+        // cleanup: remove per-cell value we set
+        if (typeof setCellCoal === 'function') setCellCoal(row, bunkerIndex, '');
+        else document.getElementById(`coal_cell_r${row}_m${bunkerIndex}`).value = '';
+        return;
+      }
+      pctInput.value = String(percent);
+      pctInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // recalc & UI updates
+    if (typeof calculateBlended === 'function') calculateBlended();
+    if (typeof validateMillPercentages === 'function') validateMillPercentages();
+    if (typeof updateBunkerColors === 'function') updateBunkerColors();
+
+    closeCoalPopup();
+  } catch (e) {
+    console.error('[coal-helper] saveCoalSelection error', e);
+    alert('Error saving selection — see console.');
+  }
+}
+
+/* Clear the last (topmost) added layer for a bunker (fixed to clear per-cell hidden inputs) */
+function clearLastLayer() {
+  try {
+    const bunkerIndex = Number(document.getElementById('popupBunkerIndex').value);
+    const last = findLastFilledRowForBunker(bunkerIndex);
+    if (!last) { alert('No layer to clear'); return; }
+
+    // Clear percentage input
+    const pctInput = document.querySelector(`.percentage-input[data-row="${last}"][data-mill="${bunkerIndex}"]`);
+    if (pctInput) { pctInput.value = ''; pctInput.dispatchEvent(new Event('input', { bubbles: true })); }
+
+    // Clear per-cell hidden coal/gcv/cost
+    if (typeof setCellCoal === 'function') {
+      // set empty value via helper
+      setCellCoal(last, bunkerIndex, '');
+      // ensure gcv/cost hidden cleared as well (helper normally clears)
+      const gcvId = `gcv_cell_r${last}_m${bunkerIndex}`, costId = `cost_cell_r${last}_m${bunkerIndex}`;
+      const gcvEl = document.getElementById(gcvId), costEl = document.getElementById(costId);
+      if (gcvEl) gcvEl.value = '';
+      if (costEl) costEl.value = '';
+    } else {
+      const hidCoal = document.getElementById(`coal_cell_r${last}_m${bunkerIndex}`);
+      if (hidCoal) hidCoal.value = '';
+      const hidG = document.getElementById(`gcv_cell_r${last}_m${bunkerIndex}`);
+      if (hidG) hidG.value = '';
+      const hidC = document.getElementById(`cost_cell_r${last}_m${bunkerIndex}`);
+      if (hidC) hidC.value = '';
+    }
+
+    // If this row is no longer used anywhere (no per-cell coal set and no percentages), clear the global row select
+    const sel = document.getElementById(`coalName${last}`);
+    let usedElsewhere = false;
+    const N = getNumRows();
+    // check per-mill percentages AND per-cell coal hidden inputs
+    for (let m = 0; m < 6; m++) {
+      const pct = parseFloat(document.querySelector(`.percentage-input[data-row="${last}"][data-mill="${m}"]`)?.value) || 0;
+      if (pct > 0) { usedElsewhere = true; break; }
+      const perCellCoalEl = document.getElementById(`coal_cell_r${last}_m${m}`);
+      if (perCellCoalEl && perCellCoalEl.value) { usedElsewhere = true; break; }
+    }
+    if (!usedElsewhere && sel) {
+      // only clear if the global select value is not used in other rows too (be cautious)
+      sel.value = '';
+    }
+
+    if (typeof calculateBlended === 'function') calculateBlended();
+    if (typeof validateMillPercentages === 'function') validateMillPercentages();
+    if (typeof updateBunkerColors === 'function') updateBunkerColors();
+
+    const more = findLastFilledRowForBunker(bunkerIndex);
+    document.getElementById('clearLastBtn').style.display = more ? 'inline-block' : 'none';
+    if (!more) closeCoalPopup();
+  } catch (e) {
+    console.error('[coal-helper] clearLastLayer error', e);
+    alert('Error clearing layer — see console.');
+  }
+}
+
+
+/* Clear the last (topmost) added layer for a bunker */
+function clearLastLayer(){
+  const bunkerIndex = Number(document.getElementById('popupBunkerIndex').value);
+  const last = findLastFilledRowForBunker(bunkerIndex);
+  if(!last){ alert('No layer to clear'); return; }
+  const pctInput = document.querySelector(`.percentage-input[data-row="${last}"][data-mill="${bunkerIndex}"]`);
+  if(pctInput) { pctInput.value = ''; pctInput.dispatchEvent(new Event('input', { bubbles:true })); }
+  const sel = document.getElementById(`coalName${last}`);
+  let usedElsewhere = false;
+  for(let m=0;m<6;m++){ if(parseFloat(document.querySelector(`.percentage-input[data-row="${last}"][data-mill="${m}"]`)?.value) > 0) { usedElsewhere = true; break; } }
+  if(!usedElsewhere && sel) sel.value = '';
+  if(typeof calculateBlended === 'function') calculateBlended();
+  if(typeof validateMillPercentages === 'function') validateMillPercentages();
+  if(typeof updateBunkerColors === 'function') updateBunkerColors();
+  const more = findLastFilledRowForBunker(bunkerIndex);
+  document.getElementById('clearLastBtn').style.display = more ? 'inline-block' : 'none';
+  if(!more) closeCoalPopup();
+}
+
+/* Wire buttons + popup actions on DOM ready */
+document.addEventListener('DOMContentLoaded', function(){
+  // expose functions globally (for inline handlers)
+  window.openCoalPopup = openCoalPopup;
+  window.closeCoalPopup = closeCoalPopup;
+  window.saveCoalSelection = saveCoalSelection;
+  window.clearLastLayer = clearLastLayer;
+
+  // wire popup buttons
+  const sp = document.getElementById('savePopup');
+  const cp = document.getElementById('cancelPopup');
+  const cl = document.getElementById('clearLastBtn');
+  if(sp) sp.addEventListener('click', saveCoalSelection);
+  if(cp) cp.addEventListener('click', closeCoalPopup);
+  if(cl) cl.addEventListener('click', clearLastLayer);
+
+  // attach click listeners to .add-coal-btn
+  document.querySelectorAll('.add-coal-btn').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      const bunkerEl = btn.closest('.bunker');
+      const idx = bunkerEl ? Number(bunkerEl.dataset.bunker) : (btn.dataset.bunker ? Number(btn.dataset.bunker) : 0);
+      openCoalPopup(idx);
+    });
+  });
+
+  // populate dropdowns on load
+  populateHiddenDropdownsAndPopup().catch(e => console.error('[coal-helper] populate error', e));
+
+  // small delayed init to ensure main calculations are present
+  setTimeout(()=>{ if(typeof calculateBlended === 'function') calculateBlended(); if(typeof updateBunkerColors === 'function') updateBunkerColors(); }, 300);
+});
+
+/* update tooltips: iterate rows 1..N */
+function updateBunkerTooltips() {
+  const db = window.COAL_DB || [];
+  const N = getNumRows();
+  document.querySelectorAll('.bunker').forEach((bunkerEl, bIndex) => {
+    const tooltip = bunkerEl.querySelector('.tooltip');
+    if (!tooltip) return;
+    let lines = [];
+    for (let r = 1; r <= N; r++) {
+      const sel = document.getElementById(`coalName${r}`);
+      const percent = document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${bIndex}"]`)?.value || "";
+      if (sel && sel.value && percent) {
+        let coalObj = db.find(c => String(c._id) === String(sel.value)) || db.find(c => String(c.coal||"").toLowerCase() === String(sel.value).toLowerCase());
+        const coalName = coalObj ? coalObj.coal : sel.value;
+        const gcv = coalObj?.gcv || "--";
+        const cost = coalObj?.cost || "--";
+        const aft = document.querySelector(`.aft[data-mill="${bIndex}"]`)?.textContent || "--";
+        lines.push(`${coalName}: ${percent}%\nGCV: ${gcv}\nCost: ${cost}\nAFT: ${aft}`);
+      }
+    }
+    tooltip.textContent = lines.length ? lines.join("\n\n") : "No coal assigned";
+  });
+}
+setInterval(updateBunkerTooltips, 1500);
+</script>
+
+<script>
+  // -------------------- Save wrapper so Submit button works --------------------
+// Make sure this is loaded before the DOMContentLoaded wiring that binds saveBtn
+async function savePayload(e){
+  if (e && typeof e.preventDefault === 'function') e.preventDefault();
+  const saveBtn = document.getElementById('saveBtn');
+  const loader = document.getElementById('loader');
+
+  try {
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.dataset.origText = saveBtn.textContent || 'Submit';
+      saveBtn.textContent = 'Saving...';
+    }
+    if (loader) loader.style.display = 'block';
+
+    // call the existing saveToServer() that builds payload and does POST/PUT
+    if (typeof saveToServer === 'function') {
+      await saveToServer();
+    } else {
+      // fallback: build payload and call API if saveToServer not present
+      if (typeof collectFormData === 'function') {
+        const payload = collectFormData();
+        const apiBase = window.location.origin + '/api';
+        // try update latest or create
+        let latestId = null;
+        try {
+          const r = await fetch(apiBase + '/blend/latest');
+          if (r.ok) {
+            const j = await r.json();
+            latestId = j && j._id ? j._id : null;
+          }
+        } catch (e) { /* ignore */ }
+
+        const url = latestId ? (apiBase + '/blend/' + latestId) : (apiBase + '/blend');
+        const method = latestId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(()=>({ error: 'Save failed' }));
+          throw new Error(err.error || res.statusText || 'Save failed');
+        }
+        const result = await res.json().catch(()=> ({}));
+        if(result && result.id) window.latestBlendId = result.id;
+        alert('Saved successfully.');
+      } else {
+        throw new Error('No saving function available (saveToServer or collectFormData missing).');
+      }
+    }
+  } catch (err) {
+    console.error('savePayload error:', err);
+    alert('Save failed: ' + (err && err.message ? err.message : 'Unknown error'));
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = saveBtn.dataset.origText || 'Submit';
+    }
+    if (loader) loader.style.display = 'none';
+  }
+}
+
+// expose globally (so inline DOM wiring can find it)
+window.savePayload = savePayload;
+
+</script>
+
+  <!-- external JS (keep your original external input.js if it contains savePayload or DB fetches) -->
+  <script src="/public/input.js"></script>
+
+  <!-- COAL PERCENT TOOLTIP: paste this after <script src="/public/input.js"></script> -->
+<style>
+  /* tooltip */
+  .coal-tooltip {
+    position: absolute;
+    pointer-events: none; /* don't block mouse */
+    background: #fff;
+    color: #111;
+    border: 1px solid rgba(0,0,0,0.12);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    padding: 8px 10px;
+    border-radius: 8px;
+    z-index: 10000;
+    font-size: 13px;
+    line-height: 1.3;
+    min-width: 160px;
+    max-width: 320px;
+  }
+  .coal-tooltip .title { font-weight: 600; margin-bottom: 6px; }
+  .coal-tooltip .kv { display:flex; justify-content:space-between; gap:8px; }
+  .coal-tooltip .kv span.key { color:#666; }
+  .coal-tooltip .kv span.val { font-weight:600; text-align:right; }
+</style>
+
+<script>
+// Improved tooltip (prefers per-cell values; computes AFT if missing)
+(function(){
+  // attach once
+  if(window.__coalTooltipImprovedAttached) return;
+  window.__coalTooltipImprovedAttached = true;
+
+  // ensure tooltip element
+  let tip = document.querySelector('.coal-tooltip.improved');
+  if(!tip){
+    tip = document.createElement('div');
+    tip.className = 'coal-tooltip improved';
+    Object.assign(tip.style, {
+      position:'absolute', display:'none', zIndex:100000,
+      background:'#fff', color:'#111', border:'1px solid rgba(0,0,0,0.12)',
+      boxShadow:'0 6px 18px rgba(0,0,0,0.12)', padding:'8px 10px', borderRadius:'8px',
+      fontSize:'13px', lineHeight:'1.3', minWidth:'160px', maxWidth:'320px', pointerEvents:'none'
+    });
+    document.body.appendChild(tip);
+  }
+
+  function findCoalObj(idOrName){
+    const db = window.COAL_DB || [];
+    if(!idOrName) return null;
+    let f = db.find(c => String(c._id) === String(idOrName) || String(c.id) === String(idOrName));
+    if(f) return f;
+    f = db.find(c => String((c.coal||c.name||'')).toLowerCase() === String(idOrName).toLowerCase());
+    return f || null;
+  }
+
+  function getPerCellCoalId(row, mill){
+    const hid = document.getElementById(`coal_cell_r${row}_m${mill}`);
+    if(hid && hid.value) return hid.value;
+    return '';
+  }
+  function getPerCellGcv(row, mill){
+    const hid = document.getElementById(`gcv_cell_r${row}_m${mill}`);
+    if(hid && hid.value) return hid.value;
+    return '';
+  }
+  function getPerCellCost(row, mill){
+    const hid = document.getElementById(`cost_cell_r${row}_m${mill}`);
+    if(hid && hid.value) return hid.value;
+    return '';
+  }
+
+  function fallbackRowSelectCoal(row){
+    const sel = document.getElementById(`coalName${row}`);
+    if(!sel) return '';
+    // prefer COAL_DB lookup if select value is id
+    if(sel.value){
+      const obj = findCoalObj(sel.value);
+      if(obj) return (obj.coal || obj.name || String(sel.value));
+    }
+    // else return label only if not the placeholder
+    const label = (sel.selectedOptions && sel.selectedOptions[0] && sel.selectedOptions[0].text) || '';
+    if(label && label.trim().toLowerCase() !== 'select coal') return label;
+    return '';
+  }
+
+  function computeBunkerAft(millIndex){
+    // compute blended oxides across rows in this mill (same logic as calculateBlended)
+    const N = (typeof window.NUM_COAL_ROWS !== 'undefined') ? Number(window.NUM_COAL_ROWS) : 5;
+    const oxKeys = ["SiO2","Al2O3","Fe2O3","CaO","MgO","Na2O","K2O","SO3","TiO2"];
+    const ox = {}; oxKeys.forEach(k => ox[k] = 0);
+    let any = false;
+    for(let r=1;r<=N;r++){
+      const pct = parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${millIndex}"]`)?.value) || 0;
+      if(!pct || pct <= 0) continue;
+      any = true;
+      // coal id from per-cell or row select (try per-cell first)
+      const perId = getPerCellCoalId(r,millIndex);
+      let coal = null;
+      if(perId) coal = findCoalObj(perId);
+      if(!coal){
+        // try row select value (may be id)
+        const sel = document.getElementById(`coalName${r}`);
+        if(sel && sel.value) coal = findCoalObj(sel.value);
+        // if still not found, try text label
+        if(!coal && sel && sel.selectedOptions && sel.selectedOptions[0] && sel.selectedOptions[0].text){
+          coal = findCoalObj(sel.selectedOptions[0].text);
+        }
+      }
+      if(!coal) continue;
+      oxKeys.forEach(k=>{
+        const val = coal[k] !== undefined ? (parseFloat(coal[k])||0) : 0;
+        ox[k] += val * (pct/100.0);
+      });
+    }
+    if(!any) return '--';
+    try{
+      if(typeof calcAFT === 'function'){
+        const v = calcAFT(ox);
+        return isFinite(v) ? Number(v).toFixed(2) : '--';
+      }
+    }catch(e){ console.warn('computeBunkerAft calc error', e); }
+    return '--';
+  }
+
+  function buildHtml({name,gcv,cost,aft}){
+    return `
+      <div style="font-weight:600;margin-bottom:6px">${name || 'No coal selected'}</div>
+      <div style="display:flex;justify-content:space-between"><span style="color:#666">GCV</span><span style="font-weight:600">${(gcv===''||gcv===null)? '--' : Number(gcv).toFixed? Number(gcv).toFixed(2) : gcv}</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:#666">Cost/MT</span><span style="font-weight:600">${(cost===''||cost===null)? '--' : Number(cost).toFixed? Number(cost).toFixed(2) : cost}</span></div>
+      <div style="height:6px"></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:#666">AFT (bunker)</span><span style="font-weight:600">${aft || '--'}</span></div>
+    `;
+  }
+
+  // tooltip behavior for rects
+  function attachToRects(){
+    const rects = document.querySelectorAll('.bunker svg rect');
+    rects.forEach(rect=>{
+      if(rect.__tooltipHooked) return;
+      rect.__tooltipHooked = true;
+      rect.addEventListener('mouseenter', function(ev){
+        try{
+          const row = Number(this.getAttribute('data-row') || this.dataset.row || 0) || 0;
+          const mill = Number(this.getAttribute('data-mill') || this.dataset.mill || 0) || 0;
+          // coal name resolution: prefer per-cell hidden id, else try COAL_DB using id, else use row select label (if not placeholder)
+          let coalId = getPerCellCoalId(row,mill);
+          let name = '';
+          let gcv = getPerCellGcv(row,mill);
+          let cost = getPerCellCost(row,mill);
+
+          if(coalId){
+            const obj = findCoalObj(coalId);
+            if(obj) {
+              name = obj.coal || obj.name || String(coalId);
+              if(!gcv) gcv = obj.gcv || obj.GCV || '';
+              if(!cost) cost = obj.cost || obj.Cost || '';
+            } else {
+              name = String(coalId);
+            }
+          } else {
+            // fallback to row-level select but prefer DB lookup if possible
+            name = fallbackRowSelectCoal(row) || '';
+            if(!gcv){
+              // try row-level gcvBox
+              const gb = document.getElementById(`gcvBox${row}`);
+              if(gb && gb.value && gb.value.trim()!=='') gcv = gb.value;
+            }
+            if(!cost){
+              const cb = document.getElementById(`costBox${row}`);
+              if(cb && cb.value && cb.value.trim()!=='') cost = cb.value;
+            }
+            // if name still empty but select has value that looks like id, try lookup
+            if(!name){
+              const sel = document.getElementById(`coalName${row}`);
+              if(sel && sel.value){
+                const o = findCoalObj(sel.value);
+                if(o) {
+                  name = o.coal || o.name || sel.value;
+                  if(!gcv) gcv = o.gcv || o.GCV || '';
+                  if(!cost) cost = o.cost || o.Cost || '';
+                } else {
+                  // show the select text but avoid 'Select coal' placeholder
+                  const label = (sel.selectedOptions && sel.selectedOptions[0] && sel.selectedOptions[0].text) || '';
+                  if(label && label.trim().toLowerCase() !== 'select coal') name = label;
+                }
+              }
+            }
+          }
+
+          // compute AFT: prefer displayed aft cell if valid, else compute
+          let aftText = (document.querySelector(`.aft[data-mill="${mill}"]`)?.textContent || '').trim();
+          if(!aftText || aftText === '--') {
+            aftText = computeBunkerAft(mill);
+          }
+
+          tip.innerHTML = buildHtml({ name: name || 'No coal selected', gcv: gcv || '', cost: cost || '', aft: aftText });
+          tip.style.display = 'block';
+          tip.setAttribute('aria-hidden','false');
+          // initial position
+          tip.style.left = (ev.pageX + 12) + 'px';
+          tip.style.top  = (ev.pageY + 12) + 'px';
+        }catch(err){ console.error('tooltip enter error', err); }
+      });
+      rect.addEventListener('mousemove', function(ev){
+        tip.style.left = (ev.pageX + 12) + 'px';
+        tip.style.top  = (ev.pageY + 12) + 'px';
+      });
+      rect.addEventListener('mouseleave', function(){
+        tip.style.display = 'none';
+        tip.setAttribute('aria-hidden','true');
+      });
+    });
+  }
+
+  // initial attach + observe DOM for new rects
+  attachToRects();
+  const grid = document.querySelector('.mills-grid') || document.body;
+  const mo = new MutationObserver((muts) => attachToRects());
+  mo.observe(grid, { childList:true, subtree:true });
+
+  // also try to trigger update if available (in case rects didn't exist earlier)
+  try { if(typeof calculateBlended === 'function') calculateBlended(); if(typeof updateBunkerColors === 'function') updateBunkerColors(); } catch(e){}
+
+  console.log('[coal-tooltip] improved tooltip active');
+})();
+
+</script>
+
+
+</body>
+</html>

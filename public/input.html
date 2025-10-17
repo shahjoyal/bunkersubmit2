@@ -1,0 +1,3418 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Coal Blending Ratio — modified</title>
+<style>
+/* ================ Final Integrated Stylesheet (fixed) ================
+   - Preserves inline SVG rect/circle/ellipse fills (so your JS colors show)
+   - Keeps bunker structural lines stroke-only
+   - Sidebar width reduced to 160px
+   - Arrows / top-line unchanged
+   ===================================================================== */
+
+/* -------------------- Core variables & base -------------------- */
+:root{
+  --bg: #F7F8FA;
+  --card: #fff;
+  --muted: #6b7280;
+  --accent: #02008a;
+
+  --navbar-height: 65px;
+  --input-height: 72px;
+
+  --available-height: calc(100vh - var(--navbar-height) - var(--input-height) - 40px);
+
+  --mills-gap: 12px;
+  --page-max: 1800px;
+  --diagram-inner-max: 1600px;
+
+  --sidebar-width: 160px;
+  --sidebar-offset: 8px;
+
+  --bunker-top-line-distance: 30px;
+  --bunker-arrow-height: 90px;
+  --line-left-offset: 4%;
+  --line-right-offset: 6.2%;
+  --arrow-width: 2px;
+  --arrow-head-size: 10px;
+
+  --add-coal-translate-y: -40%;
+
+  --bunker-outline-color: #000;
+  --bunker-outline-width: 3px;
+}
+
+/* Box sizing & base text */
+*, *::before, *::after { box-sizing: border-box; }
+html, body {
+  height: 100%;
+  margin: 0;
+  background: var(--bg);
+  color: #111;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  font-family: Inter, system-ui, Arial, Helvetica, sans-serif;
+  overflow: hidden;
+}
+
+/* Hide dev helpers */
+#loader, #downloadPDF, .summary-table, #summaryHidden { display: none !important; }
+
+/* -------------------- NAVBAR -------------------- */
+.navbar {
+  width: 100%;
+  background-color: #f7f8fa;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 12px 20px;
+  position: fixed;
+  top: 0; left: 0;
+  height: var(--navbar-height);
+  z-index: 1100;
+  box-shadow: 0 4px 8px rgba(0,0,0,0.06);
+}
+.navbar img { max-height: calc(var(--navbar-height) - 10px); object-fit: contain; }
+.navbar h1 { margin: 0 12px; font-size: 20px; color: #000; font-weight:700; }
+.nav-buttons { display:flex; gap:10px; align-items:center; margin-right:8px; }
+.navbar button { padding:10px 15px; background:var(--accent); color:#fff; border:none; border-radius:6px; cursor:pointer; font-weight:700; }
+.navbar button:hover { background:#001cbb; }
+
+/* -------------------- INPUT SECTION -------------------- */
+.input-section {
+  position: relative;
+  margin: calc(var(--navbar-height) + 8px) auto 8px;
+  z-index: 1000;
+  padding: 8px 12px;
+  background: var(--accent);
+  border-radius: 8px;
+  box-shadow: 0 6px 22px rgba(2,8,23,0.06);
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  width: fit-content;
+  min-width: 96px;
+  max-width: 100%;
+  font-size: 13px;
+  min-height: var(--input-height);
+}
+.input-section label { font-size: 12px; font-weight:600; color:#fff; white-space:nowrap; margin:0; }
+.input-section .input-box { padding:6px 8px; border-radius:6px; border:1px solid #d6d6d6; background:#fff; width:112px; height:34px; font-size:13px; box-sizing:border-box; }
+#saveBtn { background: #ef4444; color: #fff; padding:8px 12px; border-radius:8px; border:none; cursor:pointer; }
+
+/* -------------------- MAIN / CENTERING -------------------- */
+.main-container {
+  max-width: var(--page-max);
+  margin: 0 auto;
+  padding: 0 12px;
+  box-sizing: border-box;
+  width: 100%;
+  position: relative;
+  display: flex;
+  justify-content: center;
+  align-items: flex-start;
+  gap: 12px;
+  overflow: visible;
+}
+
+/* -------------------- SIDEBAR (OVERLAY) -------------------- */
+.side-bar {
+  position: absolute;
+  top: calc(var(--navbar-height) + 12px);
+  left: max(8px, calc(50% - (var(--diagram-inner-max) / 2) - var(--sidebar-width) - var(--sidebar-offset)));
+  width: var(--sidebar-width);
+  min-width: 120px;
+  padding: 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  align-items: center;
+  border-radius: 10px;
+  background: #02008a;
+  box-shadow: 0 8px 24px rgba(2,6,23,0.06);
+  z-index: 1250;
+  pointer-events: auto;
+}
+.side-bar .sidebar-title { font-size:12px; color:white; font-weight:800; text-transform:uppercase; letter-spacing:.6px; }
+.unit-btn { width: 100%; height: 44px; display: inline-flex; align-items:center; justify-content:center; padding: 8px 6px; border-radius: 10px; border: 1px solid rgba(2,8,23,0.06); background: #fff; font-weight: 800; font-size: 13px; cursor: pointer; box-shadow: 0 6px 14px rgba(2,6,23,0.04); }
+.unit-btn:hover { transform: translateY(-2px); transition: transform 160ms ease; background: #0ea5a4; }
+@media (max-width: 980px) { .side-bar { display: none; } }
+
+/* -------------------- MILLS GRID -------------------- */
+.mills-grid {
+  display: grid;
+  grid-template-columns: 150px repeat(8, 1fr);
+  gap: var(--mills-gap);
+  align-items: start;
+  padding: 6px 12px 12px;
+  width: 100%;
+  box-sizing: border-box;
+  max-height: calc(100vh - var(--navbar-height) - var(--input-height) - 24px);
+  overflow: auto;
+  -webkit-overflow-scrolling: touch;
+}
+.mills-grid::-webkit-scrollbar { width: 9px; height: 9px; }
+.mills-grid::-webkit-scrollbar-thumb { background: rgba(0,0,0,0.12); border-radius: 8px; }
+
+.mills-grid > .mill.coal-flow,
+.mills-grid > .mill.next-timer,
+.mills-grid > .mill.bunker-total {
+  grid-column: 1;
+  display:flex !important;
+  align-items:center;
+  justify-content:flex-start;
+  padding:6px 8px;
+  font-weight:700;
+  color:var(--muted);
+  font-size:13px;
+  height:36px;
+  gap:6px;
+}
+
+/* hide dev-only */
+.mills-grid .dropdown,
+.mills-grid .percentage-input,
+.mills-grid .gcv,
+.mills-grid .cost-head,
+.mills-grid .gcv-box,
+.mills-grid .cost-input,
+.mills-grid .aft-head,
+.mills-grid .aft,
+.mills-grid .next-blend-box,
+.mills-grid .mill.green,
+.mills-grid .mill[readonly] { display: none !important; }
+
+.mills-grid > .mill { display: none !important; }
+.mills-grid > .mill.coal-flow { display:flex !important; padding-left:6px; }
+
+.mills-grid > .mill:has(.flow-input),
+.mills-grid > .mill:has(.timer-input),
+.mills-grid > .mill:has(.total-input) {
+  display:flex !important;
+  align-items:center;
+  justify-content:flex-start;
+  padding:4px 6px !important;
+}
+
+.mills-grid > .mill:has([data-mill="0"]) { grid-column: 2; }
+.mills-grid > .mill:has([data-mill="1"]) { grid-column: 3; }
+.mills-grid > .mill:has([data-mill="2"]) { grid-column: 4; }
+.mills-grid > .mill:has([data-mill="3"]) { grid-column: 5; }
+.mills-grid > .mill:has([data-mill="4"]) { grid-column: 6; }
+.mills-grid > .mill:has([data-mill="5"]) { grid-column: 7; }
+.mills-grid > .mill:has([data-mill="6"]) { grid-column: 8; }
+.mills-grid > .mill:has([data-mill="7"]) { grid-column: 9; }
+
+
+/* inputs */
+.flow-input,
+.timer-input,
+.next-blend-box,
+.total-input {
+  width: 100%;
+  max-width: none;
+  min-width: 56px;
+  padding: 6px;
+  height: 34px;
+  border-radius: 8px;
+  border: 1px solid #e6e6e6;
+  font-size: 14px;
+  text-align: center;
+  background: #fff;
+  box-sizing: border-box;
+}
+
+/* -------------------- DIAGRAM / BUNKERS -------------------- */
+.diagram-in-grid {
+  grid-column: 2 / span 8;
+  justify-self: center; 
+  align-self: start;
+  width: 100%;
+  padding: 8px;
+  box-sizing: border-box;
+}
+.diagram-in-grid .layout {
+  background: var(--card);
+  border-radius: 12px;
+  padding: 14px;
+  box-shadow: 0 8px 30px rgba(2,8,23,0.06);
+  position: relative;
+  overflow: visible;
+  max-width: var(--diagram-inner-max);
+  width: 100%;
+  margin: 0 auto;
+  min-height: 180px;
+  height: min(640px, calc(var(--available-height) * 0.62));
+}
+.bunkers-grid {
+  display: grid;
+  grid-template-columns: repeat(8, 1fr);
+  gap: 18px;
+  align-items: end;
+  padding: 10px;
+  width: 100%;
+  box-sizing: border-box;
+}
+.bunker {
+  position: relative;
+  display:flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: flex-end;
+  height: clamp(100px, calc(var(--available-height) * 0.44), 420px);
+}
+.bunker svg { width: 80%; height: auto; max-height: 380px; display:block; }
+.bunker .label {
+  position: absolute;
+  bottom: -18px;
+  left: 50%;
+  transform: translateX(-50%);
+  font-size: 12px;
+  background: rgba(255,255,255,0.95);
+  padding: 6px 10px;
+  border-radius: 10px;
+  box-shadow: 0 2px 8px rgba(0,0,0,0.06);
+  white-space: nowrap;
+}
+
+/* overlay + buttons */
+.top-overlay { position: absolute; inset: 0; pointer-events: none; z-index: 1200; }
+.top-overlay .add-coal-overlay {
+  position: absolute; pointer-events: auto; display: inline-flex; align-items: center; justify-content: center;
+  width: 44px; height: 44px; border-radius: 50%; border: none; font-size: 22px; background: #0ea5a4; color:#fff;
+  box-shadow: 0 6px 18px rgba(2,6,23,0.14); transform: translate(-50%, var(--add-coal-translate-y)); cursor: pointer; z-index:1300;
+}
+.bunker .add-coal-btn { display: none !important; }
+
+/* popup */
+.popup { position: fixed; inset: 0; display:flex; align-items:center; justify-content:center; background: rgba(0,0,0,0.35); z-index:1500; }
+.popup.hidden { display:none; }
+.popup-content { background:#fff; padding:18px; border-radius:12px; width:420px; box-shadow:0 10px 40px rgba(2,6,23,0.18); }
+.popup-content h3 { margin:0 0 10px 0; font-size:18px; }
+.popup-row { display:flex; gap:12px; margin:10px 0; align-items:center; }
+.popup-row label { min-width:90px; font-size:14px; color:#444; }
+.popup-row select, .popup-row input { flex:1; padding:10px; border-radius:8px; border:1px solid #e6e6e6; font-size:15px; }
+.popup-actions { display:flex; gap:10px; justify-content:flex-end; margin-top:14px; }
+.btn { padding:10px 14px; border-radius:8px; border:none; cursor:pointer; font-size:14px; }
+.btn-save { background:#0ea5a4; color:#fff; }
+.btn-cancel { background:#f3f4f6; }
+.btn-clear { background:#ef4444; color:#fff; }
+
+/* tooltip */
+.bunker .tooltip { display: none; position:absolute; bottom:100%; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.85); color:#fff; padding:8px 12px; border-radius:8px; font-size:13px; pointer-events:none; }
+.bunker:hover .tooltip { display:block; }
+
+/* top line & arrows (unchanged) */
+.top-line {
+  position: absolute;
+  top: var(--bunker-top-line-distance);
+  left: var(--line-left-offset);
+  right: var(--line-right-offset);
+  height: 0;
+  background: transparent;
+  border-top: 2px solid var(--bunker-outline-color);
+  z-index: 1100;
+}
+.arrow {
+  position: absolute;
+  width: var(--arrow-width);
+  background: #000;
+  top: var(--bunker-top-line-distance);
+  height: var(--bunker-arrow-height);
+  transform-origin: top center;
+}
+.arrow::after {
+  content: '';
+  position: absolute;
+  left: calc(50% - 7px);
+  top: 100%;
+  border-left: 7px solid transparent;
+  border-right: 7px solid transparent;
+  border-top: var(--arrow-head-size) solid #000;
+}
+
+/* -------------------- BUNKER SVG rules (FIXED) -------------------- */
+/* 1) Structural outline elements -> stroke-only */
+.bunker svg path,
+.bunker svg polygon,
+.bunker svg polyline,
+.bunker svg line {
+  fill: none !important;
+  stroke: var(--bunker-outline-color) !important;
+  stroke-width: var(--bunker-outline-width) !important;
+  stroke-linejoin: round !important;
+  stroke-linecap: round !important;
+  vector-effect: non-scaling-stroke !important;
+}
+
+/* 2) DO NOT override fills for rect/circle/ellipse.
+      This is the critical fix: allow your JS's inline fill="..." to show.
+      We do remove strokes (so colored blocks are solid) but we DON'T set fill. */
+.bunker svg rect,
+.bunker svg circle,
+.bunker svg ellipse {
+  stroke: none !important;  /* keep them solid-looking, but DO NOT set fill here */
+}
+
+/* 3) Keep explicitly marked keep-fill elements safe */
+.bunker svg .keep-fill {
+  fill: currentColor !important;
+  stroke: none !important;
+}
+
+/* 4) If arrow shapes are inside the SVG and must remain filled, mark them */
+.bunker svg .arrow-shaft,
+.bunker svg .arrow-head {
+  fill: #000 !important;
+  stroke: none !important;
+}
+.navbar .logout-btn{
+  background: red;
+}
+
+/* -------------------- Responsive -------------------- */
+@media (max-width: 1200px) {
+  :root { --diagram-inner-max: 900px; --page-max: 1100px; }
+  .main-container { padding: 0 10px; }
+  .bunker svg { max-height: 320px; }
+  .diagram-in-grid .layout { height: calc(var(--available-height) * 0.58); }
+}
+@media (max-width: 900px) {
+  :root { --page-max: 980px; --diagram-inner-max: 860px; }
+  .mills-grid { grid-template-columns: 140px repeat(6, 1fr); gap:10px; padding: 10px; }
+  .diagram-in-grid .layout { height: calc(var(--available-height) * 0.5); min-height:200px; }
+  .bunkers-grid { gap:12px; }
+  .bunker svg { width: 86%; max-height: 260px; }
+  .top-overlay .add-coal-overlay { width: 40px; height: 40px; font-size: 20px; }
+}
+@media (max-width: 600px) {
+  .mills-grid { grid-template-columns: 120px repeat(6, minmax(56px, 1fr)); gap:8px; padding: 8px; }
+  .diagram-in-grid { grid-column: 1 / -1; }
+  .diagram-in-grid .layout { max-width: 100%; height: calc(var(--available-height) * 0.46); min-height:160px; }
+  .bunkers-grid { grid-template-columns: repeat(3, 1fr); gap:10px; }
+  .bunker svg { width: 90%; max-height: 220px; }
+  .top-overlay .add-coal-overlay { width: 36px; height: 36px; font-size:18px; }
+}
+@media (max-width: 420px) {
+  :root { --input-height: 88px; }
+  .mills-grid { grid-template-columns: 110px repeat(6, minmax(48px, 1fr)); gap:6px; padding: 8px; }
+  .diagram-in-grid .layout { height: calc(var(--available-height) * 0.38); min-height:140px; }
+  .bunker svg { max-height: 160px; }
+  .input-section { flex-direction: column; width: calc(100% - 24px); margin: calc(var(--navbar-height) + 8px) 12px 8px; }
+}
+
+/* final safety: ensure no body scrollbars */
+html, body { overflow: hidden; }
+</style>
+  <script>
+     if(localStorage.getItem('isLoggedIn') !== 'true') {
+    alert('You must login first!');
+    window.location.href = '/public/login.html'; 
+} else {
+    document.body.style.display = 'block';
+}
+    function logoutUser() {
+  localStorage.setItem('isLoggedIn', 'false'); 
+  window.location.href = '/public/login.html'; 
+}
+
+  </script>
+
+</head>
+<body>
+
+  <!-- Navbar kept in DOM but hidden via CSS -->
+<div class="navbar hidden-dom" aria-hidden="true">
+  <img src="/public/images/abhitech-logo.png" alt="Company Logo">
+  <h1>ABCD-Advanced Coal Bunkering and Database</h1>
+
+  <div class="nav-buttons">
+    <button onclick="window.location.href='/public/coals.html'">Go to Coals Page</button>
+    <button class="logout-btn" onclick="logoutUser()">Logout</button>
+  </div>
+</div>
+
+<!-- Input / controls section -->
+<div class="input-section" role="region" aria-label="Bunker inputs">
+  <label for="bunkerCapacity">Bunker Capacity (tons):</label>
+  <input
+    type="number"
+    id="bunkerCapacity"
+    class="input-box"
+    placeholder="Enter bunker capacity" />
+
+  <label for="generation">Generation (MW):</label>
+  <input
+    type="number"
+    id="generation"
+    class="input-box"
+    placeholder="Enter generation value" />
+
+  <!-- Submit moved here for consistent placement -->
+  <div style="display:flex; gap:8px; justify-content:center; margin-top:6px;">
+    <button id="saveBtn" class="upload-btn">Submit</button>
+  </div>
+</div>
+
+<!-- Loader & PDF button (kept hidden) -->
+<div id="loader" class="hidden-dom" aria-hidden="true">Loading... please wait</div>
+<button id="downloadPDF" class="icon-btn hidden-dom" title="Download page as PDF" aria-hidden="true">⬇️</button>
+
+<!-- MAIN GRID -->
+<div class="main-container">
+
+    <aside class="side-bar" aria-label="Units sidebar">
+      <div class="sidebar-title">Units</div>
+      <button class="unit-btn" type="button" aria-pressed="false">Unit 1</button>
+      <button class="unit-btn" type="button" aria-pressed="false">Unit 2</button>
+      <button class="unit-btn" type="button" aria-pressed="false">Unit 3</button>
+    </aside>
+  <div class="mills-grid" id="millsGrid">
+    <!-- header row (kept in DOM but hidden visually) -->
+    <div class="hidden-dom" aria-hidden="true"></div>
+    <div class="mill green hidden-dom" aria-hidden="true">BUNKER 1</div>
+    <div class="mill green hidden-dom" aria-hidden="true">BUNKER 2</div>
+    <div class="mill green hidden-dom" aria-hidden="true">BUNKER 3</div>
+    <div class="mill green hidden-dom" aria-hidden="true">BUNKER 4</div>
+    <div class="mill green hidden-dom" aria-hidden="true">BUNKER 5</div>
+    <div class="mill green hidden-dom" aria-hidden="true">BUNKER 6</div>
+    <div class="mill green hidden-dom" aria-hidden="true">BUNKER 7</div>
+    <div class="mill green hidden-dom" aria-hidden="true">BUNKER 8</div>
+    <div class="mill gcv hidden-dom" aria-hidden="true">GCV(Kcal/kg)</div>
+    <div class="mill cost-head hidden-dom" aria-hidden="true">Cost/MT</div>
+
+    <!-- Row 1: Coal name select & % under mills (kept but hidden) -->
+    <div class="mill">
+      <select class="dropdown" id="coalName1">
+        <option value="">Select coal</option>
+      </select>
+    </div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="0" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="1" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="2" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="3" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="4" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="5" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="6" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="1" data-mill="7" placeholder="%"></div>
+    <div class="mill"><input type="text" id="gcvBox1" class="gcv-box" placeholder="GCV"></div>
+    <div class="mill"><input type="text" id="costBox1" class="cost-input" placeholder="Cost/MT"></div>
+
+    <!-- Row 2 (hidden) -->
+    <div class="mill">
+      <select class="dropdown" id="coalName2">
+        <option value="">Select coal</option>
+      </select>
+    </div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="2" data-mill="0" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="2" data-mill="1" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="2" data-mill="2" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="2" data-mill="3" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="2" data-mill="4" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="2" data-mill="5" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="2" data-mill="6" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="2" data-mill="7" placeholder="%"></div>
+    <div class="mill"><input type="text" id="gcvBox2" class="gcv-box" placeholder="GCV"></div>
+    <div class="mill"><input type="text" id="costBox2" class="cost-input" placeholder="Cost/MT"></div>
+
+    <!-- Row 3 (hidden) -->
+    <div class="mill">
+      <select class="dropdown" id="coalName3">
+        <option value="">Select coal</option>
+      </select>
+    </div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="3" data-mill="0" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="3" data-mill="1" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="3" data-mill="2" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="3" data-mill="3" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="3" data-mill="4" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="3" data-mill="5" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="3" data-mill="6" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="3" data-mill="7" placeholder="%"></div>
+    <div class="mill"><input type="text" id="gcvBox3" class="gcv-box" placeholder="GCV"></div>
+    <div class="mill"><input type="text" id="costBox3" class="cost-input" placeholder="Cost/MT"></div>
+
+    <!-- Row 4 (hidden) -->
+    <div class="mill">
+      <select class="dropdown" id="coalName4">
+        <option value="">Select coal</option>
+      </select>
+    </div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="4" data-mill="0" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="4" data-mill="1" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="4" data-mill="2" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="4" data-mill="3" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="4" data-mill="4" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="4" data-mill="5" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="4" data-mill="6" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="4" data-mill="7" placeholder="%"></div>
+    <div class="mill"><input type="text" id="gcvBox4" class="gcv-box" placeholder="GCV"></div>
+    <div class="mill"><input type="text" id="costBox4" class="cost-input" placeholder="Cost/MT"></div>
+
+    <!-- Row 5 (hidden) -->
+    <div class="mill">
+      <select class="dropdown" id="coalName5">
+        <option value="">Select coal</option>
+      </select>
+    </div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="5" data-mill="0" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="5" data-mill="1" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="5" data-mill="2" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="5" data-mill="3" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="5" data-mill="4" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="5" data-mill="5" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="5" data-mill="6" placeholder="%"></div>
+    <div class="mill"><input type="text" class="percentage-input" data-row="5" data-mill="7" placeholder="%"></div>
+    <div class="mill"><input type="text" id="gcvBox5" class="gcv-box" placeholder="GCV"></div>
+    <div class="mill"><input type="text" id="costBox5" class="cost-input" placeholder="Cost/MT"></div>
+
+    <!-- diagram area (this is visible) -->
+    <div class="hidden-dom" aria-hidden="true"></div>
+    <!-- <div class="page-grid"> -->
+    
+    <div class="diagram-in-grid" style="padding:8px;">
+      <div class="layout">
+        <div class="top-overlay" aria-hidden="true">
+          <div class="top-line"></div>
+
+          <!-- arrows positioned by percentage (centers of 6 equal columns) -->
+<div class="arrow" style="left:6.25%;"></div>
+<div class="arrow" style="left:18.75%;"></div>
+<div class="arrow" style="left:31.25%;"></div>
+<div class="arrow" style="left:43.75%;"></div>
+<div class="arrow" style="left:56.25%;"></div>
+<div class="arrow" style="left:68.75%;"></div>
+<div class="arrow" style="left:81.25%;"></div>
+<div class="arrow" style="left:93.75%;"></div>
+
+        </div>
+
+        <div class="bunkers-grid">
+          <!-- six bunkers (visible and enlarged) -->
+          <div class="bunker" data-bunker="0">
+            <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet">
+              <path d="M10 10 V100 L45 140 M55 140 L90 100 V10" />
+            </svg>
+            <div class="label">Bunker 1</div>
+            <button class="add-coal-btn" onclick="openCoalPopup(0)">+</button>
+          </div>
+
+          <div class="bunker" data-bunker="1">
+            <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet">
+              <path d="M10 10 V100 L45 140 M55 140 L90 100 V10" />
+            </svg>
+            <div class="label">Bunker 2</div>
+            <button class="add-coal-btn" onclick="openCoalPopup(1)">+</button>
+          </div>
+
+          <div class="bunker" data-bunker="2">
+            <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet">
+              <path d="M10 10 V100 L45 140 M55 140 L90 100 V10" />
+            </svg>
+            <div class="label">Bunker 3</div>
+            <button class="add-coal-btn" onclick="openCoalPopup(2)">+</button>
+          </div>
+
+          <div class="bunker" data-bunker="3">
+            <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet">
+              <path d="M10 10 V100 L45 140 M55 140 L90 100 V10" />
+            </svg>
+            <div class="label">Bunker 4</div>
+            <button class="add-coal-btn" onclick="openCoalPopup(3)">+</button>
+          </div>
+
+          <div class="bunker" data-bunker="4">
+            <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet">
+              <path d="M10 10 V100 L45 140 M55 140 L90 100 V10" />
+            </svg>
+            <div class="label">Bunker 5</div>
+            <button class="add-coal-btn" onclick="openCoalPopup(4)">+</button>
+          </div>
+
+          <div class="bunker" data-bunker="5">
+            <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet">
+              <path d="M10 10 V100 L45 140 M55 140 L90 100 V10" />
+            </svg>
+            <div class="label">Bunker 6</div>
+            <button class="add-coal-btn" onclick="openCoalPopup(5)">+</button>
+          </div>
+
+          <div class="bunker" data-bunker="6">
+  <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet">
+    <path d="M10 10 V100 L45 140 M55 140 L90 100 V10" />
+  </svg>
+  <div class="label">Bunker 7</div>
+  <button class="add-coal-btn" onclick="openCoalPopup(6)">+</button>
+</div>
+
+<div class="bunker" data-bunker="7">
+  <svg viewBox="0 0 100 150" preserveAspectRatio="xMidYMid meet">
+    <path d="M10 10 V100 L45 140 M55 140 L90 100 V10" />
+  </svg>
+  <div class="label">Bunker 8</div>
+  <button class="add-coal-btn" onclick="openCoalPopup(7)">+</button>
+</div>
+
+        </div>
+      </div> <!-- .layout -->
+    </div> <!-- .diagram-in-grid -->
+
+    <div></div>
+    <div></div>
+
+    <!-- Coal Flow row (visible) -->
+    <div class="mill coal-flow">Coal Flow(TPH)</div>
+    <div class="mill"><input type="text" class="flow-input" data-mill="0" placeholder="TPH"></div>
+    <div class="mill"><input type="text" class="flow-input" data-mill="1" placeholder="TPH"></div>
+    <div class="mill"><input type="text" class="flow-input" data-mill="2" placeholder="TPH"></div>
+    <div class="mill"><input type="text" class="flow-input" data-mill="3" placeholder="TPH"></div>
+    <div class="mill"><input type="text" class="flow-input" data-mill="4" placeholder="TPH"></div>
+    <div class="mill"><input type="text" class="flow-input" data-mill="5" placeholder="TPH"></div>
+    <div class="mill"><input type="text" class="flow-input" data-mill="6" placeholder="TPH"></div>
+    <div class="mill"><input type="text" class="flow-input" data-mill="7" placeholder="TPH"></div>
+    <div></div>
+    <div></div>
+
+    <!-- Next Timer row -->
+<div class="mill next-timer">Bunker Empty time</div>
+<div class="mill"><input id="nextTimer0" type="text" class="flow-input timers-input" data-mill="0" placeholder="hh:mm:ss" readonly></div>
+<div class="mill"><input id="nextTimer1" type="text" class="flow-input timers-input" data-mill="1" placeholder="hh:mm:ss" readonly></div>
+<div class="mill"><input id="nextTimer2" type="text" class="flow-input timers-input" data-mill="2" placeholder="hh:mm:ss" readonly></div>
+<div class="mill"><input id="nextTimer3" type="text" class="flow-input timers-input" data-mill="3" placeholder="hh:mm:ss" readonly></div>
+<div class="mill"><input id="nextTimer4" type="text" class="flow-input timers-input" data-mill="4" placeholder="hh:mm:ss" readonly></div>
+<div class="mill"><input id="nextTimer5" type="text" class="flow-input timers-input" data-mill="5" placeholder="hh:mm:ss" readonly></div>
+<div class="mill"><input id="nextTimer6" type="text" class="flow-input timers-input" data-mill="6" placeholder="hh:mm:ss" readonly></div>
+<div class="mill"><input id="nextTimer7" type="text" class="flow-input timers-input" data-mill="7" placeholder="hh:mm:ss" readonly></div>
+
+
+
+    <!-- Bunker Total row -->
+    <div class="mill bunker-total">Bunker Total %</div>
+    <div class="mill"><input type="text" class="flow-input total-inputs" data-mill="0" placeholder="TPH"></div>
+    <div class="mill"><input type="text" class="flow-input total-inputs" data-mill="1" placeholder="TPH"></div>
+    <div class="mill"><input type="text" class="flow-input total-inputs" data-mill="2" placeholder="TPH"></div>
+    <div class="mill"><input type="text" class="flow-input total-inputs" data-mill="3" placeholder="TPH"></div>
+    <div class="mill"><input type="text" class="flow-input total-inputs" data-mill="4" placeholder="TPH"></div>
+    <div class="mill"><input type="text" class="flow-input total-inputs" data-mill="5" placeholder="TPH"></div>
+    <div class="mill"><input type="text" class="flow-input total-inputs" data-mill="6" placeholder="TPH"></div>
+    <div class="mill"><input type="text" class="flow-input total-inputs" data-mill="7" placeholder="TPH"></div>
+    <div></div>
+    <div></div>
+
+    <!-- AFT row (kept in DOM but hidden) -->
+    <div class="mill aft-head hidden-dom" aria-hidden="true">AFT(°C)</div>
+    <div class="mill aft hidden-dom" data-mill="0" aria-hidden="true">--</div>
+    <div class="mill aft hidden-dom" data-mill="1" aria-hidden="true">--</div>
+    <div class="mill aft hidden-dom" data-mill="2" aria-hidden="true">--</div>
+    <div class="mill aft hidden-dom" data-mill="3" aria-hidden="true">--</div>
+    <div class="mill aft hidden-dom" data-mill="4" aria-hidden="true">--</div>
+    <div class="mill aft hidden-dom" data-mill="5" aria-hidden="true">--</div>
+    <div></div>
+    <div></div>
+
+    <!-- Next Blend (kept in DOM but hidden) -->
+    <div class="mill" aria-hidden="true">Next Coal Blend</div>
+    <div class="mill"><input type="text" id="nextBlend0" class="next-blend-box" readonly></div>
+    <div class="mill"><input type="text" id="nextBlend1" class="next-blend-box" readonly></div>
+    <div class="mill"><input type="text" id="nextBlend2" class="next-blend-box" readonly></div>
+    <div class="mill"><input type="text" id="nextBlend3" class="next-blend-box" readonly></div>
+    <div class="mill"><input type="text" id="nextBlend4" class="next-blend-box" readonly></div>
+    <div class="mill"><input type="text" id="nextBlend5" class="next-blend-box" readonly></div>
+    <div class="mill"><input type="text" id="nextBlend6" class="next-blend-box" readonly></div>
+    <div class="mill"><input type="text" id="nextBlend7" class="next-blend-box" readonly></div>
+    <div></div>
+    <div></div>
+
+  </div><!-- .mills-grid -->
+</div><!-- .main-container -->
+<!-- </div> -->
+<!-- Popup used to add a coal layer to a specific bunker -->
+<div id="coalPopup" class="popup hidden" aria-hidden="true">
+  <div class="popup-content" role="dialog" aria-modal="true">
+    <h3>Add coal to bunker</h3>
+
+    <div class="popup-row">
+      <label for="popupCoal">Coal</label>
+      <select id="popupCoal"><option value="">Loading…</option></select>
+    </div>
+
+    <div class="popup-row">
+      <label for="popupPercent">Tonnage (tons)</label>
+      <input id="popupPercent" type="number" min="0" step="any" placeholder="Enter tons (e.g. 300)" />
+    </div>
+
+    <div class="popup-row" style="margin-top:6px;">
+      <label>Note</label>
+      <div style="font-size:13px;color:#666">
+        You can add up to 5 layers per bunker (bottom → middle → top → ...). This action fills the first available layer.
+      </div>
+    </div>
+
+    <div class="popup-actions">
+      <button class="btn btn-clear" id="clearLastBtn" title="Remove last added layer">Clear last</button>
+      <button class="btn btn-cancel" id="cancelPopup">Cancel</button>
+      <button class="btn btn-save" id="savePopup">Save</button>
+    </div>
+
+    <input type="hidden" id="popupBunkerIndex" value="">
+  </div>
+</div>
+
+  <!-- ---------- Calculation script (keeps all existing logic) ---------- -->
+<script>
+window.NUM_COAL_ROWS = window.NUM_COAL_ROWS || 5;
+/* ---------- coal color persistence with unique assignments ---------- */
+/* ---------- palette (40 colors) and simplified mapping logic ---------- */
+const DEFAULT_COAL_COLORS = [
+  "#000000", "#FFFFFF", "#FF0000", "#00FF00", "#0000FF",
+  "#FFFF00", "#00FFFF", "#FF00FF", "#FFA500", "#800080",
+  "#008000", "#808000", "#008080", "#800000", "#A52A2A",
+  "#FF4500", "#2E8B57", "#4682B4", "#DA70D6", "#40E0D0",
+  "#B22222", "#FFD700", "#ADFF2F", "#DC143C", "#7FFF00",
+  "#6495ED", "#FF1493", "#20B2AA", "#FF6347", "#9932CC",
+  "#00CED1", "#FF69B4", "#556B2F", "#1E90FF", "#B8860B",
+  "#32CD32", "#C71585", "#708090", "#F4A460", "#00BFFF"
+];
+
+
+const COAL_COLOR_MAP_KEY = '__coalColorMap_v2'; // bump key to avoid old maps during testing
+
+function readCoalColorMap(){
+  try{
+    const raw = localStorage.getItem(COAL_COLOR_MAP_KEY);
+    return raw ? JSON.parse(raw) : {};
+  }catch(e){
+    console.warn('coal color map read err', e);
+    return {};
+  }
+}
+function writeCoalColorMap(map){
+  try{ localStorage.setItem(COAL_COLOR_MAP_KEY, JSON.stringify(map)); }catch(e){ console.warn('coal color map write err', e); }
+}
+function normalizeHex(h){
+  if(!h) return null;
+  h = String(h).trim();
+  if(!h) return null;
+  if(!h.startsWith('#')) h = '#' + h;
+  if(/^#([0-9a-f]{3})$/i.test(h)){
+    const m = h.match(/^#([0-9a-f])([0-9a-f])([0-9a-f])$/i);
+    h = '#' + m[1]+m[1] + m[2]+m[2] + m[3]+m[3];
+  }
+  return h.toLowerCase();
+}
+function getReverseMap(map){
+  const rev = {};
+  for(const k of Object.keys(map)){
+    const c = normalizeHex(map[k]);
+    if(c) rev[c] = k;
+  }
+  return rev;
+}
+
+/* Pick first palette color not already used in the persistent map */
+function pickFirstUnusedPaletteColor(map){
+  const used = new Set(Object.keys(getReverseMap(map)));
+  for(const c of DEFAULT_COAL_COLORS){
+    const nc = normalizeHex(c);
+    if(!nc) continue;
+    if(!used.has(nc)) return nc;
+  }
+  return null;
+}
+
+/* generate unique random hex if palette is exhausted */
+function generateUniqueHex(map, tries = 80){
+  const used = new Set(Object.keys(getReverseMap(map)));
+  for(let i=0;i<tries;i++){
+    const r = Math.floor(Math.random()*256);
+    const g = Math.floor(Math.random()*256);
+    const b = Math.floor(Math.random()*256);
+    const hex = '#' + [r,g,b].map(v => v.toString(16).padStart(2,'0')).join('').toLowerCase();
+    if(!used.has(hex)) return hex;
+  }
+  return null;
+}
+
+/* --- New behavior ---
+   getDisplayColor(key):
+     - If key already saved in localStorage map -> return saved color (persistent)
+     - Else -> return a non-persistent color chosen from palette (keeps UI colored immediately)
+     NOTE: does NOT write to localStorage.
+*/
+function getDisplayColor(key){
+  const rawKey = String(key || '').trim();
+  if(!rawKey) return normalizeHex(DEFAULT_COAL_COLORS[0]);
+
+  const map = readCoalColorMap();
+  if(map[rawKey]) return normalizeHex(map[rawKey]);
+
+  // for display-only, prefer a palette color that is not already persistently used
+  const pal = pickFirstUnusedPaletteColor(map);
+  if(pal) return pal;
+
+  // palette exhausted: pick deterministic fallback based on hash + index so different keys differ
+  let idx = 0;
+  for(let i=0;i<rawKey.length;i++){ idx = (idx * 31 + rawKey.charCodeAt(i)) >>> 0; }
+  return normalizeHex(DEFAULT_COAL_COLORS[idx % DEFAULT_COAL_COLORS.length]);
+}
+
+/* setCoalColor(key):
+   - persistently assign a unique palette color to key and write to localStorage.
+   - if requested color is supplied (optional second argument), tries to assign that (reassigning other key if needed).
+*/
+function setCoalColor(key, requestedHex){
+  const rawKey = String(key || '').trim();
+  if(!rawKey) return null;
+
+  const map = readCoalColorMap();
+  const rev = getReverseMap(map);
+
+  // if requested color provided, normalize and try to use it (reassign other if used)
+  if(requestedHex){
+    const desired = normalizeHex(requestedHex);
+    if(desired){
+      if(rev[desired] && rev[desired] !== rawKey){
+        // move the other key to another free palette color (or generated color)
+        const otherKey = rev[desired];
+        let replacement = pickFirstUnusedPaletteColor(map);
+        if(!replacement) replacement = generateUniqueHex(map);
+        if(!replacement) replacement = normalizeHex(DEFAULT_COAL_COLORS[(Math.abs(otherKey.length) % DEFAULT_COAL_COLORS.length)]);
+        map[otherKey] = replacement;
+      }
+      map[rawKey] = desired;
+      writeCoalColorMap(map);
+      return map[rawKey];
+    }
+  }
+
+  // if key already has a color, return it
+  if(map[rawKey]) return normalizeHex(map[rawKey]);
+
+  // pick first unused palette color
+  let pick = pickFirstUnusedPaletteColor(map);
+  if(!pick){
+    // palette exhausted -> generate unique hex
+    pick = generateUniqueHex(map);
+  }
+  if(!pick){
+    // last resort: deterministic fallback
+    pick = normalizeHex(DEFAULT_COAL_COLORS[(rawKey.length) % DEFAULT_COAL_COLORS.length]);
+  }
+
+  // ensure uniqueness: if pick somehow assigned, reassign previous owner
+  const revAfter = getReverseMap(map);
+  if(revAfter[pick] && revAfter[pick] !== rawKey){
+    const prev = revAfter[pick];
+    let replacement = pickFirstUnusedPaletteColor(map);
+    if(!replacement) replacement = generateUniqueHex(map);
+    map[prev] = replacement || normalizeHex(DEFAULT_COAL_COLORS[(prev.length)%DEFAULT_COAL_COLORS.length]);
+  }
+
+  map[rawKey] = pick;
+  writeCoalColorMap(map);
+  return map[rawKey];
+}
+
+/* remove persisted mapping (if you delete a coal) */
+function clearCoalColor(key){
+  const rawKey = String(key || '').trim();
+  if(!rawKey) return;
+  const map = readCoalColorMap();
+  if(map[rawKey]){ delete map[rawKey]; writeCoalColorMap(map); }
+}
+
+/* expose helpers */
+window.getDisplayColor = getDisplayColor;
+window.setCoalColor = setCoalColor;
+window.clearCoalColor = clearCoalColor;
+
+
+//over here
+
+
+function calcAFT(ox){
+  const total = Object.values(ox).reduce((a,b)=>a+b,0);
+  if(total === 0) return 0;
+  const sum = (ox["SiO2"]||0) + (ox["Al2O3"]||0);
+  let aft = 0;
+  if(sum < 55){
+    aft = 1245 + (1.1*(ox["SiO2"]||0)) + (0.95*(ox["Al2O3"]||0)) - (2.5*(ox["Fe2O3"]||0)) - (2.98*(ox["CaO"]||0)) - (4.5*(ox["MgO"]||0)) - (7.89*((ox["Na2O"]||0) + (ox["K2O"]||0))) - (1.7*(ox["SO3"]||0)) - (0.63*(ox["TiO2"]||0));
+  } else if(sum < 75){
+    aft = 1323 + (1.45*(ox["SiO2"]||0)) + (0.683*(ox["Al2O3"]||0)) - (2.39*(ox["Fe2O3"]||0)) - (3.1*(ox["CaO"]||0)) - (4.5*(ox["MgO"]||0)) - (7.49*((ox["Na2O"]||0) + (ox["K2O"]||0))) - (2.1*(ox["SO3"]||0)) - (0.63*(ox["TiO2"]||0));
+  } else {
+    aft = 1395 + (1.2*(ox["SiO2"]||0)) + (0.9*(ox["Al2O3"]||0)) - (2.5*(ox["Fe2O3"]||0)) - (3.1*(ox["CaO"]||0)) - (4.5*(ox["MgO"]||0)) - (7.2*((ox["Na2O"]||0) + (ox["K2O"]||0))) - (1.7*(ox["SO3"]||0)) - (0.63*(ox["TiO2"]||0));
+  }
+  return Number(aft);
+}
+
+function getCoalObjForRow(r){
+  const sel = document.getElementById(`coalName${r}`);
+  if(!sel || !sel.value) return null;
+  const db = window.COAL_DB || [];
+  let found = db.find(c => String(c._id) === String(sel.value));
+  if(!found) found = db.find(c => String(c.coal || '').toLowerCase() === String(sel.value).toLowerCase());
+  return found || null;
+}
+
+function formatHMS(sec) {
+  const s = Math.max(0, Math.floor(sec));
+  const hrs = Math.floor(s / 3600);
+  const mins = Math.floor((s % 3600) / 60);
+  const secs = s % 60;
+  return `${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+}
+
+const bunkerTimers = new Array(8).fill(null);
+let lastGlobalBunkerCapacity = parseFloat(document.getElementById('bunkerCapacity')?.value) || 0;
+
+function clearBunkerTimer(i){
+  const t = bunkerTimers[i];
+  if(t && t.intervalId) clearInterval(t.intervalId);
+  bunkerTimers[i] = null;
+}
+function arraysEqualRounded(a,b){
+  if(!a && !b) return true;
+  if(!a || !b) return false;
+  if(a.length !== b.length) return false;
+  for(let i=0;i<a.length;i++){
+    if(Math.abs((a[i]||0) - (b[i]||0)) > 1) return false;
+  }
+  return true;
+}
+
+function updateBunkerColors(){
+  const db = window.COAL_DB || [];
+  const rowColors = new Array(NUM_COAL_ROWS).fill(null);
+
+  // pick colors per row (1..N)
+  for(let r=1;r<=NUM_COAL_ROWS;r++){
+    // choose color for row r using persisted map / DB / deterministic fallback
+// choose color for row r using a robust persistent key (id:... or name:...)
+let colorForRow = DEFAULT_COAL_COLORS[(r-1) % DEFAULT_COAL_COLORS.length];
+const sel = document.getElementById(`coalName${r}`);
+
+// build a robust key: prefer option value (id) else option text (name)
+let colorKey = null;
+if(sel){
+  const val = (sel.value !== undefined && String(sel.value).trim()) ? String(sel.value).trim() : '';
+  const label = (sel.selectedOptions && sel.selectedOptions[0] && sel.selectedOptions[0].text) ? String(sel.selectedOptions[0].text).trim() : '';
+  if(val) colorKey = `id:${val}`;
+  else if(label) colorKey = `name:${label}`;
+}
+
+if(colorKey){
+ colorForRow = getDisplayColor(colorKey);
+
+} else {
+  // fallback use row number so different rows still get different defaults
+  colorForRow = findCoalColor(`row:${r}`);
+}
+rowColors[r-1] = colorForRow;
+
+// update the select's background & contrast as before
+if(sel){
+  sel.style.background = colorForRow;
+  try{
+    const c = String(colorForRow).replace('#','');
+    const rch = parseInt(c.substring(0,2),16), gch = parseInt(c.substring(2,4),16), bch = parseInt(c.substring(4,6),16);
+    const lum = 0.2126*rch + 0.7152*gch + 0.0722*bch;
+    sel.style.color = (lum < 140) ? '#fff' : '#111';
+  }catch(e){}
+}
+
+  // update each bunker svg by stacking rows bottom->top (row NUM as bottom)
+  const svgWidth = 100, svgHeight = 150, topY = 10, midY = 100, bottomY = 140, usableH = bottomY - topY;
+  const outlinePath = `M10 ${topY} L10 ${midY} L45 ${bottomY} L55 ${bottomY} L90 ${midY} L90 ${topY} Z`;
+
+  const bunkers = document.querySelectorAll('.bunker');
+  bunkers.forEach((bunkerEl, bIndex) => {
+    const svg = bunkerEl.querySelector('svg');
+    if(!svg) return;
+
+    // collect percentages for rows 1..N, then create bottom->top array
+    const fullHeights = [];
+    const pctVals = []; // keep raw pct for data attribute
+    for(let r = NUM_COAL_ROWS; r >= 1; r--){
+      const p = parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${bIndex}"]`)?.value) || 0;
+      pctVals.push(p);
+      fullHeights.push((Math.max(0, Math.min(100, p)) / 100) * usableH);
+    }
+
+    const clipId = `clip-bunker-${bIndex}`;
+    // Start building new inner HTML - include clipPath
+    let inner = `<defs><clipPath id="${clipId}"><path d="${outlinePath}" /></clipPath></defs>`;
+
+    const timer = bunkerTimers[bIndex];
+
+    let cum = 0;
+    for(let layerIdx=0; layerIdx<fullHeights.length; layerIdx++){
+      const fullH = fullHeights[layerIdx];
+      if(fullH <= 0) { cum += 0; continue; }
+      let visibleH = fullH;
+      if(timer){
+        if(layerIdx < timer.currentLayer) {
+          visibleH = 0;
+        } else if(layerIdx === timer.currentLayer) {
+          const totalForLayer = timer.layersSeconds[layerIdx] || 1;
+          const remaining = timer.layerRemaining || 0;
+          visibleH = fullH * Math.max(0, remaining / Math.max(1, totalForLayer));
+        } else {
+          visibleH = fullH;
+        }
+      }
+      const y = bottomY - (cum + visibleH);
+      // compute row index corresponding to this layerIdx
+      // fullHeights was built with r descending (NUM -> 1) so:
+      const rowIndex = NUM_COAL_ROWS - layerIdx; // 1..NUM_COAL_ROWS
+      const pct = pctVals[layerIdx] || 0;
+      cum += visibleH;
+      const colorIndex = (NUM_COAL_ROWS - 1 - layerIdx);
+// compute fillColor from per-bunker stored coal (preferred) or fallback to row select / preview
+let fillColor = null;
+try{
+  // rowIndex corresponds to the actual row number (1..NUM_COAL_ROWS)
+  const storedInput = document.getElementById(`coal_cell_r${rowIndex}_m${bIndex}`) || document.querySelector(`input[name="coal_cell_r${rowIndex}_m${bIndex}"]`) || document.querySelector(`input[id="coal_cell_r${rowIndex}_m${bIndex}"]`);
+  let storedCoalVal = storedInput && storedInput.value ? String(storedInput.value).trim() : '';
+
+  // If not found via element id/name, try reading hidden input via ensureHiddenInputLocal's id pattern
+  if(!storedCoalVal){
+    const alt = document.querySelector(`input[id^="coal_cell_r${rowIndex}_m"]`) || null;
+    if(alt && alt.value) storedCoalVal = String(alt.value).trim();
+  }
+
+  let colorKeyForLayer = null;
+  if(storedCoalVal){
+    colorKeyForLayer = `id:${storedCoalVal}`;
+  } else {
+    // fallback to the row select label/value (non-persisted)
+    const selRow = document.getElementById(`coalName${rowIndex}`);
+    if(selRow){
+      const v = (selRow.value !== undefined && String(selRow.value).trim()) ? String(selRow.value).trim() : '';
+      const lab = (selRow.selectedOptions && selRow.selectedOptions[0] && selRow.selectedOptions[0].text) ? String(selRow.selectedOptions[0].text).trim() : '';
+      colorKeyForLayer = v ? `id:${v}` : (lab ? `name:${lab}` : `row:${rowIndex}`);
+    } else {
+      colorKeyForLayer = `row:${rowIndex}`;
+    }
+  }
+
+  // prefer persisted color from map, else use display preview
+  const persistentMap = readCoalColorMap();
+  if(colorKeyForLayer && persistentMap[colorKeyForLayer]){
+    fillColor = normalizeHex(persistentMap[colorKeyForLayer]);
+  } else {
+    // getDisplayColor shows a good preview without persisting
+    fillColor = (typeof window.getDisplayColor === 'function') ? window.getDisplayColor(colorKeyForLayer) : (rowColors[colorIndex] || DEFAULT_COAL_COLORS[colorIndex % DEFAULT_COAL_COLORS.length]);
+  }
+} catch(err){
+  console.warn('fillColor compute error', err);
+  fillColor = rowColors[colorIndex] || DEFAULT_COAL_COLORS[colorIndex % DEFAULT_COAL_COLORS.length];
+}
+
+      if(visibleH > 0){
+        // add data attributes and inline handlers (call global window functions)
+        inner += `<rect x="0" y="${y}" width="${svgWidth}" height="${visibleH}" fill="${fillColor}" clip-path="url(#${clipId})" data-row="${rowIndex}" data-mill="${bIndex}" data-pct="${pct}" onmouseenter="window.showCoalRectTooltip && window.showCoalRectTooltip(event, ${rowIndex}, ${bIndex})" onmousemove="window.moveCoalRectTooltip && window.moveCoalRectTooltip(event)" onmouseleave="window.hideCoalRectTooltip && window.hideCoalRectTooltip()" />`;
+      }
+    }
+
+    inner += `<path d="M10 ${topY} L10 ${midY}" stroke="black" fill="none" stroke-width="2" />`;
+    inner += `<path d="M90 ${topY} L90 ${midY}" stroke="black" fill="none" stroke-width="2" />`;
+    inner += `<path d="M10 ${midY} L45 ${bottomY}" stroke="black" fill="none" stroke-width="2" />`;
+    inner += `<path d="M90 ${midY} L55 ${bottomY}" stroke="black" fill="none" stroke-width="2" />`;
+
+    svg.setAttribute('viewBox', `0 0 ${svgWidth} ${svgHeight}`);
+    svg.innerHTML = inner;
+
+    // update layers info tooltip text (if present)
+    const infoEl = document.getElementById(`layersInfo${bIndex}`);
+    if(infoEl){
+      const layers = [];
+      const db = window.COAL_DB || [];
+      // show rows bottom->top with percentages
+      for(let r = NUM_COAL_ROWS; r >= 1; r--){
+        const pct = parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${bIndex}"]`)?.value) || 0;
+        if(pct > 0){
+          const sel = document.getElementById(`coalName${r}`);
+          let text = `${pct}%`;
+          if(sel && sel.value){
+            const found = db.find(c => String(c._id) === String(sel.value));
+            if(found) text = `${found.coal || found.name || 'coal'} — ${pct}%`;
+          }
+          layers.push(text);
+        }
+      }
+      infoEl.innerText = layers.length? layers.join(' | ') : 'No layers';
+    }
+  });
+}
+}
+
+
+function computeLayerSeconds(b){
+  const bunkerCapacity = parseFloat(document.getElementById('bunkerCapacity')?.value) || 0;
+  const flow = parseFloat(document.querySelector(`.flow-input[data-mill="${b}"]`)?.value) || 0;
+
+  // build array bottom->top (row NUM -> row 1)
+  const pctArr = [];
+  for(let r = NUM_COAL_ROWS; r >= 1; r--){
+    const p = parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${b}"]`)?.value) || 0;
+    pctArr.push(p);
+  }
+
+  const seconds = pctArr.map(p => {
+    if(flow <= 0 || bunkerCapacity <= 0 || p <= 0) return 0;
+    const hours = (p / 100.0) * bunkerCapacity / flow;
+    return hours * 3600;
+  });
+  return seconds;
+}
+
+function startOrUpdateBunkerTimer(b, layerSeconds, flow, bunkerCapacity){
+  const normalized = layerSeconds.map(s => Math.max(0, Math.round(s)));
+  const existing = bunkerTimers[b];
+  const newCfg = { layersSeconds: normalized.slice(), flow: flow||0, bunkerCapacity: bunkerCapacity||0 };
+
+  if(existing && existing.intervalId && existing.lastConfig && arraysEqualRounded(existing.lastConfig.layersSeconds, newCfg.layersSeconds) && Math.abs((existing.lastConfig.flow||0)-(newCfg.flow||0))<1e-6 && Math.abs((existing.lastConfig.bunkerCapacity||0)-(newCfg.bunkerCapacity||0))<1e-6){
+    return;
+  }
+
+  clearBunkerTimer(b);
+  let startIndex = 0;
+  while(startIndex < normalized.length && (normalized[startIndex] || 0) <= 0) startIndex++;
+  if(startIndex >= normalized.length){
+    updateNextBlendDisplay(b, 0);
+    updateBunkerColors();
+    return;
+  }
+
+  const timerObj = {
+    layersSeconds: normalized,
+    currentLayer: startIndex,
+    layerRemaining: Math.max(0, normalized[startIndex] || 0),
+    lastConfig: newCfg,
+    intervalId: null
+  };
+
+  updateBunkerColors();
+  updateNextBlendDisplay(b, timerObj.layerRemaining);
+
+  timerObj.intervalId = setInterval(() => {
+    if(timerObj.layerRemaining > 0){
+      timerObj.layerRemaining--;
+    }
+    if(timerObj.layerRemaining <= 0){
+      timerObj.currentLayer++;
+      if(timerObj.currentLayer >= timerObj.layersSeconds.length){
+        clearBunkerTimer(b);
+        updateNextBlendDisplay(b, 0);
+        updateBunkerColors();
+        return;
+      }
+      timerObj.layerRemaining = Math.max(0, timerObj.layersSeconds[timerObj.currentLayer] || 0);
+      updateBunkerColors();
+      updateNextBlendDisplay(b, timerObj.layerRemaining);
+      return;
+    }
+    updateBunkerColors();
+    updateNextBlendDisplay(b, timerObj.layerRemaining);
+  }, 1000);
+
+  bunkerTimers[b] = timerObj;
+}
+
+function updateNextBlendDisplay(b, seconds){
+  const el = document.getElementById(`nextBlend${b}`);
+  if(!el) return;
+  if(!isFinite(seconds) || seconds <= 0){ el.value = '--'; el.dataset.seconds = 0; return; }
+  el.value = formatHMS(seconds);
+  el.dataset.seconds = Math.max(0, Math.floor(seconds));
+  //console.log(el)
+}
+
+function getSingleBunkerCapacity(){
+  const el = document.getElementById('bunkerCapacity');
+  if(!el) return 0;
+  return parseFloat(el.value) || 0;
+}
+
+function calculateBlended(){
+  // collect gcv and coal objects for rows 1..N
+  const gcvInputs = [];
+  const coalObjs = [];
+  for(let r=1;r<=NUM_COAL_ROWS;r++){
+    const gcvEl = document.getElementById(`gcvBox${r}`);
+    gcvInputs[r] = (gcvEl && gcvEl.value.trim()!=='') ? (parseFloat(gcvEl.value)||0) : null;
+    coalObjs[r] = getCoalObjForRow(r);
+  }
+  // determine gcv numeric per row (prefer typed input, else db value)
+  const gcvVals = [];
+  for(let r=1;r<=NUM_COAL_ROWS;r++){
+    const explicit = gcvInputs[r];
+    if(explicit !== null) gcvVals[r] = explicit;
+    else gcvVals[r] = (coalObjs[r] && (coalObjs[r].gcv||coalObjs[r].GCV)) ? (parseFloat(coalObjs[r].gcv||coalObjs[r].GCV)||0) : 0;
+  }
+
+  const oxKeys = ["SiO2","Al2O3","Fe2O3","CaO","MgO","Na2O","K2O","SO3","TiO2"];
+  let totalFlow = 0, weightedGCV = 0, weightedAFT = 0, contributedAFTFlow = 0;
+
+  const bunkerCapacity = getSingleBunkerCapacity();
+  const flowVals = [];
+
+  const capacityChanged = Math.abs((bunkerCapacity || 0) - (lastGlobalBunkerCapacity || 0)) > 1e-6;
+  if(capacityChanged) lastGlobalBunkerCapacity = bunkerCapacity;
+
+  for(let m=0;m<8;m++){
+    // percentages for this mill per row (1..N)
+    const p = [];
+    for(let r=1;r<=NUM_COAL_ROWS;r++){
+      p[r] = parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${m}"]`)?.value) || 0;
+    }
+
+    // blended GCV
+    let blendedGCV = 0;
+    for(let r=1;r<=NUM_COAL_ROWS;r++){
+      blendedGCV += (gcvVals[r] || 0) * (p[r]/100);
+    }
+
+    // blended ox
+    const ox = {}; let oxTotal = 0;
+    oxKeys.forEach(k=>{
+      let blended = 0;
+      for(let r=1;r<=NUM_COAL_ROWS;r++){
+        const c = coalObjs[r];
+        const val = c ? (c[k] !== undefined ? (parseFloat(c[k])||0) : 0) : 0;
+        blended += val * (p[r]/100);
+      }
+      ox[k] = blended; oxTotal += blended;
+    });
+
+    const aftCell = document.querySelector(`.aft[data-mill="${m}"]`);
+    if(aftCell){
+      if(oxTotal === 0) aftCell.innerText = '--';
+      else { const aftVal = calcAFT(ox); aftCell.innerText = isFinite(aftVal) ? Number(aftVal).toFixed(2) : '--'; }
+    }
+
+    const flow = parseFloat(document.querySelector(`.flow-input[data-mill="${m}"]`)?.value) || 0;
+    flowVals[m] = flow;
+    if(flow > 0){
+      totalFlow += flow;
+      weightedGCV += (flow * blendedGCV);
+      const aftText = aftCell ? aftCell.innerText : '--';
+      const aftValNumeric = (aftText !== '--') ? (parseFloat(aftText)||0) : null;
+      if(aftValNumeric !== null){ weightedAFT += (flow * aftValNumeric); contributedAFTFlow += flow; }
+    }
+  }
+
+  // timers for each bunker based on newly computed layers for N rows
+  for(let m=0;m<8;m++){
+    const layersSec = computeLayerSeconds(m);
+    const flow = flowVals[m] || 0;
+    const existing = bunkerTimers[m];
+    const existingArr = existing ? existing.layersSeconds : null;
+    if(capacityChanged){
+      if(layersSec.some(s => s > 1)) startOrUpdateBunkerTimer(m, layersSec, flow, bunkerCapacity);
+      else clearBunkerTimer(m);
+    } else {
+      const existingCfg = existing ? existing.lastConfig : null;
+      if(!existingCfg || !arraysEqualRounded(existingCfg.layersSeconds, layersSec) || Math.abs((existingCfg.flow||0)-flow) > 1e-6){
+        if(layersSec.some(s => s > 1)) startOrUpdateBunkerTimer(m, layersSec, flow, bunkerCapacity);
+        else clearBunkerTimer(m);
+      }
+    }
+  }
+
+  updateBunkerColors();
+
+  const avgGCV = totalFlow > 0 ? (weightedGCV / totalFlow) : 0;
+  const avgAFT = contributedAFTFlow > 0 ? (weightedAFT / contributedAFTFlow) : null;
+
+  const hiddenTotalFlow = document.querySelector('#summaryHidden #totalFlow') || document.getElementById('totalFlow');
+  if(hiddenTotalFlow) hiddenTotalFlow.innerText = Number(totalFlow).toFixed(2);
+  const avgGCVEl = document.getElementById('avgGCV'); if(avgGCVEl) avgGCVEl.innerText = totalFlow>0 ? Number(avgGCV).toFixed(2) : 0;
+  const avgAFTEl = document.getElementById('avgAFT'); if(avgAFTEl) avgAFTEl.innerText = (avgAFT!==null) ? Number(avgAFT).toFixed(2) : '--';
+
+  const generationVal = parseFloat(document.getElementById('generation')?.value) || 0;
+  const heatRateEl = document.getElementById('heatRate');
+  if(generationVal > 0 && totalFlow > 0){
+    const heatRate = (totalFlow * avgGCV) / generationVal;
+    if(heatRateEl) heatRateEl.innerText = Number(heatRate).toFixed(2);
+  } else { if(heatRateEl) heatRateEl.innerText = '--'; }
+
+  // cost: compute per-row qty & cost same as before but for N rows
+  function getCoalQty(rowIndex){ let total=0; for(let m=0;m<8;m++) total+= parseFloat(document.querySelector(`.percentage-input[data-row="${rowIndex}"][data-mill="${m}"]`)?.value) || 0; return total; }
+
+  let totalCost = 0, totalQty = 0;
+  for(let r=1;r<=NUM_COAL_ROWS;r++){
+    const costVal = (document.getElementById(`costBox${r}`)?.value.trim()!=='') ? (parseFloat(document.getElementById(`costBox${r}`).value)||0) : ((coalObjs[r] && (coalObjs[r].cost||coalObjs[r].Cost)) ? (parseFloat(coalObjs[r].cost||coalObjs[r].Cost)||0) : 0);
+    const qty = getCoalQty(r);
+    totalCost += (qty * costVal);
+    totalQty += qty;
+  }
+  const costRate = totalQty>0 ? (totalCost/totalQty) : 0;
+  const costRateEl = document.getElementById('COSTRATE'); if(costRateEl) costRateEl.innerText = Number(costRate).toFixed(2);
+}
+
+function validateMillPercentages(){
+  for(let m=0;m<8;m++){
+    let hasPercent=false;
+    for(let r=1;r<=NUM_COAL_ROWS;r++){ const v=parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${m}"]`)?.value)||0; if(v>0){ hasPercent=true; break; } }
+    const flow = parseFloat(document.querySelector(`.flow-input[data-mill="${m}"]`)?.value)||0;
+    const header = Array.from(document.querySelectorAll('.mills-grid > .mill')).find(el => el.textContent.trim().startsWith(`BUNKER ${m+1}`));
+    if(!header) continue;
+    header.classList.remove('red','green');
+    if(hasPercent && flow > 0) header.classList.add('red'); else header.classList.add('green');
+  }
+}
+
+function calculateBlendedForBunker(millIndex){
+  const bunkerCapacity = parseFloat(document.getElementById('bunkerCapacity')?.value)||0;
+  const flow = parseFloat(document.querySelector(`.flow-input[data-mill="${millIndex}"]`)?.value) || 0;
+  const layersSeconds = computeLayerSeconds(millIndex);
+  const existing = bunkerTimers[millIndex];
+  const existingArr = existing ? existing.layersSeconds : null;
+  if(!arraysEqualRounded(existingArr, layersSeconds)){
+    if(layersSeconds.some(s=>s>1)) startOrUpdateBunkerTimer(millIndex, layersSeconds, flow, bunkerCapacity);
+    else clearBunkerTimer(millIndex);
+  }
+  updateBunkerColors();
+}
+
+function attachAutoUpdate(){
+  document.querySelectorAll('.percentage-input').forEach(inp=>{
+    inp.dataset.prev = inp.value || '';
+    inp.addEventListener('focus', function(){ this.dataset.prev = this.value; });
+    inp.addEventListener('input', function(){
+      const millIndex = Number(this.dataset.mill);
+      let sum = 0;
+      for(let r=1;r<=NUM_COAL_ROWS;r++) sum += parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${millIndex}"]`)?.value) || 0;
+      if(sum > 100){ this.value = this.dataset.prev || ''; alert(`Total for Mill ${String.fromCharCode(65+millIndex)} cannot exceed 100%.`); calculateBlended(); validateMillPercentages(); updateBunkerColors(); return; }
+      this.dataset.prev = this.value;
+      calculateBlendedForBunker(millIndex);
+      calculateBlended();
+      validateMillPercentages();
+      updateBunkerColors();
+    });
+  });
+
+  document.querySelectorAll('.flow-input').forEach(fi=>{
+    fi.addEventListener('input', function(){
+      const m = Number(this.dataset.mill);
+      calculateBlendedForBunker(m);
+      calculateBlended();
+      validateMillPercentages();
+      updateBunkerColors();
+    });
+  });
+
+  document.querySelectorAll('#bunkerCapacity, #generation, .cost-input, .gcv-box, .dropdown').forEach(el=>{
+    el.addEventListener('input', ()=>{
+      calculateBlended();
+      validateMillPercentages();
+      updateBunkerColors();
+    });
+    el.addEventListener('change', ()=>{
+      calculateBlended();
+      validateMillPercentages();
+      updateBunkerColors();
+    });
+  });
+
+  calculateBlended();
+  validateMillPercentages();
+  updateBunkerColors();
+}
+
+/* ---------- Boot ---------- */
+document.addEventListener('DOMContentLoaded', function(){
+  attachAutoUpdate();
+  const saveBtn = document.getElementById('saveBtn');
+  if(saveBtn){
+    if(typeof savePayload === 'function') saveBtn.addEventListener('click', savePayload);
+    else if(typeof window.saveBlend === 'function') saveBtn.addEventListener('click', savePayload);
+  }
+
+  const pdfBtn = document.getElementById('downloadPDF');
+  if(pdfBtn) pdfBtn.addEventListener('click', function(){
+    try {
+      const { jsPDF } = window.jspdf;
+      html2canvas(document.body, { scale:2, useCORS:true }).then(canvas=>{
+        const imgData = canvas.toDataURL('image/png');
+        const pdf = new jsPDF('p','mm','a4');
+        const pageW = pdf.internal.pageSize.getWidth();
+        const imgW = pageW;
+        const imgH = (canvas.height * imgW) / canvas.width;
+        let position=0; let heightLeft=imgH;
+        pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH);
+        heightLeft -= pdf.internal.pageSize.getHeight();
+        while(heightLeft>0){ position = heightLeft - imgH; pdf.addPage(); pdf.addImage(imgData, 'PNG', 0, position, imgW, imgH); heightLeft -= pdf.internal.pageSize.getHeight(); }
+        pdf.save('Coal_Blending_Ratio.pdf');
+      });
+    } catch(e){ console.error(e); alert('PDF export failed (see console).'); }
+  });
+});
+</script>
+<script>
+/* Updated popup/helper script that supports dynamic NUM_COAL_ROWS (default fallback = 5)
+   - per-bunker capacity-aware timer calculation
+   - clearLastLayer removes the actual last added layer (per-bunker seq stamp)
+*/
+
+console.log('[coal-helper] script loaded');
+
+/* Determine number of rows in DOM / from other scripts:
+   tries: global constant NUM_COAL_ROWS, then window.NUM_COAL_ROWS, else fallback 5.
+*/
+function getNumRows(){
+  if(typeof NUM_COAL_ROWS !== 'undefined' && Number.isFinite(Number(NUM_COAL_ROWS))) return Number(NUM_COAL_ROWS);
+  if(typeof window.NUM_COAL_ROWS !== 'undefined' && Number.isFinite(Number(window.NUM_COAL_ROWS))) return Number(window.NUM_COAL_ROWS);
+  return 5; // safe fallback
+}
+
+function buildOptionsFromDB(db){
+  if(!db || !Array.isArray(db)) return '<option value="">No data</option>';
+  const sorted = db.slice().sort((a,b) => {
+    const aa = String(a.coal || a.name || '').trim().toLowerCase();
+    const bb = String(b.coal || b.name || '').trim().toLowerCase();
+    if(aa < bb) return -1;
+    if(aa > bb) return 1;
+    return 0;
+  });
+  return ['<option value="">Select coal</option>'].concat(sorted.map(c=>{
+    const id = c._id || c.id || c._key || c.coal || c.name;
+    const label = c.coal || c.name || String(id || '');
+    return `<option value="${String(id)}">${String(label)}</option>`;
+  })).join('');
+}
+
+
+async function ensureCoalDB(timeout = 3000) {
+  const start = Date.now();
+  while(Date.now() - start < timeout){
+    if(Array.isArray(window.COAL_DB)) { return window.COAL_DB; }
+    if(Array.isArray(window.COAL_LIST)) { window.COAL_DB = window.COAL_LIST; return window.COAL_DB; }
+    await new Promise(r => setTimeout(r, 150));
+  }
+  // fallback fetch attempts
+  const endpoints = ['/api/coals','/api/coal','/api/coal/list','/api/coal/all','/api/coalnames'];
+  for(const ep of endpoints){
+    try{
+      const res = await fetch(ep, { credentials: 'same-origin' });
+      if(!res.ok) continue;
+      const json = await res.json();
+      if(Array.isArray(json)){ window.COAL_DB = json; return window.COAL_DB; }
+      if(json && Array.isArray(json.data)){ window.COAL_DB = json.data; return window.COAL_DB; }
+      if(json && Array.isArray(json.coals)){ window.COAL_DB = json.coals; return window.COAL_DB; }
+    }catch(e){}
+  }
+  window.COAL_DB = window.COAL_DB || [];
+  return window.COAL_DB;
+}
+
+async function populateHiddenDropdownsAndPopup(){
+  const db = await ensureCoalDB();
+  const optsHtml = buildOptionsFromDB(db);
+  const N = getNumRows();
+
+  function setSelectOptionsPreserve(selectEl, html){
+    if(!selectEl) return;
+    const prev = selectEl.value;
+    selectEl.innerHTML = html;
+    if(prev){
+      const exists = Array.from(selectEl.options).some(o => String(o.value) === String(prev));
+      if(exists) selectEl.value = prev;
+    }
+  }
+
+  for(let r=1; r<=N; r++){
+    const sel = document.getElementById('coalName' + r);
+    if(!sel) continue;
+    setSelectOptionsPreserve(sel, optsHtml);
+  }
+
+  const popup = document.getElementById('popupCoal');
+  if(popup) popup.innerHTML = optsHtml;
+
+  console.log('[coal-helper] dropdowns & popup populated; counts: db=', (db && db.length) || 0, 'rows=', N);
+}
+
+/* Try to find coal by id or name from window.COAL_DB */
+function getCoalByIdOrName(idOrName){
+  const db = window.COAL_DB || window.COAL_LIST || [];
+  if(!idOrName) return null;
+  let found = db.find(c => String(c._id) === String(idOrName) || String(c.id) === String(idOrName));
+  if(found) return found;
+  found = db.find(c => String((c.coal||c.name||'')).toLowerCase() === String(idOrName).toLowerCase());
+  return found || null;
+}
+
+/* Find first available row to fill for a bunker:
+   search from top index (N) down to 1 and return the first empty slot.
+*/
+function findFirstAvailableRowForBunker(bunkerIndex){
+  const N = getNumRows();
+  for(let r = N; r >= 1; r--){
+    const el = document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${bunkerIndex}"]`);
+    const val = parseFloat(el?.value) || 0;
+    if(!val || val <= 0) return r;
+  }
+  return null;
+}
+
+/* Find the last filled row for a bunker by highest index (topmost filled).
+   Kept for UI fallback, but clear uses seq-based logic for exact "last added".
+*/
+function findLastFilledRowForBunker(bunkerIndex){
+  const N = getNumRows();
+  for(let r = N; r >= 1; r--){
+    const el = document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${bunkerIndex}"]`);
+    const val = parseFloat(el?.value) || 0;
+    if(val > 0) return r;
+  }
+  return null;
+}
+
+/* open popup for bunker index */
+async function openCoalPopup(bunkerIndex){
+  await populateHiddenDropdownsAndPopup();
+  const popup = document.getElementById('coalPopup');
+  if(!popup) return;
+  document.getElementById('popupBunkerIndex').value = String(bunkerIndex);
+  document.getElementById('popupPercent').value = '';
+  const popupCoal = document.getElementById('popupCoal');
+  if(popupCoal) popupCoal.value = '';
+  const last = findLastFilledRowForBunker(bunkerIndex);
+  document.getElementById('clearLastBtn').style.display = last ? 'inline-block' : 'none';
+  const noteDiv = document.querySelector('#coalPopup .popup-row:nth-child(3) div');
+  if(noteDiv){
+    const N = getNumRows();
+    noteDiv.textContent = `You can add up to ${N} layers per bunker (bottom → middle → top → ...). This action fills the first available layer.`;
+  }
+  popup.classList.remove('hidden');
+  popup.setAttribute('aria-hidden','false');
+}
+
+/* close popup */
+function closeCoalPopup(){
+  const popup = document.getElementById('coalPopup');
+  if(!popup) return;
+  popup.classList.add('hidden');
+  popup.setAttribute('aria-hidden','true');
+}
+
+/* --- Sequence tracking for 'last added' behavior --- */
+// object mapping bunkerIndex -> last seq number used
+window.__coalSeqCounterByBunker = window.__coalSeqCounterByBunker || {};
+
+/* Helper: produce/ensure a hidden input, used for per-cell storage */
+function ensureHiddenInputLocal(id) {
+  var el = document.getElementById(id);
+  if (!el) {
+    el = document.createElement('input');
+    el.type = 'hidden';
+    el.id = id;
+    document.body.appendChild(el);
+  }
+  return el;
+}
+
+/* Save selection into hidden selects & percentage inputs (stores per-cell seq) */
+function saveCoalSelection() {
+  try {
+    const bunkerIndex = Number(document.getElementById('popupBunkerIndex').value);
+    const coalId = document.getElementById('popupCoal').value;
+    const tonnesRaw = document.getElementById('popupPercent').value;
+    const tonnes = Number(tonnesRaw);
+    const N = getNumRows();
+
+    if (!coalId) { alert('Please select a coal'); return; }
+    if (!isFinite(tonnes) || tonnes <= 0) { alert('Please enter a valid tonnage greater than 0'); return; }
+
+    // get bunker capacity (per-bunker preferred)
+    // look for: .bunker-capacity[data-mill="X"], then #bunkerCapacityX, then #bunkerCapacity (global)
+    let bunkerCapacity = null;
+    const capEl1 = document.querySelector(`.bunker-capacity[data-mill="${bunkerIndex}"]`);
+    if(capEl1) bunkerCapacity = parseFloat(capEl1.value || capEl1.textContent || capEl1.dataset.value) || null;
+    if(bunkerCapacity === null) {
+      const capEl2 = document.getElementById('bunkerCapacity' + bunkerIndex);
+      if(capEl2) bunkerCapacity = parseFloat(capEl2.value || capEl2.textContent || capEl2.dataset.value) || null;
+    }
+    if(bunkerCapacity === null) {
+      const capEl3 = document.getElementById('bunkerCapacity');
+      if(capEl3) bunkerCapacity = parseFloat(capEl3.value || capEl3.textContent || capEl3.dataset.value) || null;
+    }
+    if (!isFinite(bunkerCapacity) || bunkerCapacity <= 0) { alert('Please enter the bunker capacity first'); return; }
+
+    // Convert tonnes -> percent (2 decimals)
+    let percent = (tonnes / bunkerCapacity) * 100;
+    percent = Math.round(percent * 100) / 100; // 2 decimals
+
+    if (percent <= 0) { alert('Entered tonnage yields 0% — enter a larger tonnage'); return; }
+    if (percent > 100) {
+      if(!confirm(`Entered tonnage (${tonnes}) is greater than bunker capacity (${bunkerCapacity}). This will be capped to 100%. Proceed?`)) return;
+      percent = 100;
+    }
+
+    const row = findFirstAvailableRowForBunker(bunkerIndex);
+    if (!row) { alert(`All ${N} layers for this bunker are already used. Clear one before adding.`); return; }
+
+    const sel = document.getElementById(`coalName${row}`);
+    if (!sel) { alert('Internal error: hidden select not found.'); return; }
+
+    const coalObj = getCoalByIdOrName(coalId);
+
+    // Add option to the row select if it doesn't already exist (but DO NOT set sel.value globally)
+    if (!Array.from(sel.options).some(o => String(o.value) === String(coalId))) {
+      const opt = document.createElement('option');
+      opt.value = coalId;
+      opt.text = coalObj ? (coalObj.coal || coalObj.name || String(coalId)) : String(coalId);
+      sel.appendChild(opt);
+    }
+
+    // increment seq counter for this bunker
+    window.__coalSeqCounterByBunker[bunkerIndex] = (window.__coalSeqCounterByBunker[bunkerIndex] || 0) + 1;
+    const seqVal = window.__coalSeqCounterByBunker[bunkerIndex];
+
+    // Store selection per-cell (row, bunkerIndex)
+    if (typeof setCellCoal === 'function') {
+      // if user has a helper, call it — but still store seq and gcv/cost hidden inputs to be safe
+      setCellCoal(row, bunkerIndex, coalId);
+      ensureHiddenInputLocal(`coal_cell_r${row}_m${bunkerIndex}`).value = coalId;
+      ensureHiddenInputLocal(`seq_cell_r${row}_m${bunkerIndex}`).value = String(seqVal);
+      if (coalObj) {
+        ensureHiddenInputLocal(`gcv_cell_r${row}_m${bunkerIndex}`).value = coalObj.gcv || '';
+        ensureHiddenInputLocal(`cost_cell_r${row}_m${bunkerIndex}`).value = coalObj.cost || '';
+      } else {
+        ensureHiddenInputLocal(`gcv_cell_r${row}_m${bunkerIndex}`).value = '';
+        ensureHiddenInputLocal(`cost_cell_r${row}_m${bunkerIndex}`).value = '';
+      }
+    } else {
+      ensureHiddenInputLocal(`coal_cell_r${row}_m${bunkerIndex}`).value = coalId;
+      ensureHiddenInputLocal(`seq_cell_r${row}_m${bunkerIndex}`).value = String(seqVal);
+      if (coalObj) {
+        ensureHiddenInputLocal(`gcv_cell_r${row}_m${bunkerIndex}`).value = coalObj.gcv || '';
+        ensureHiddenInputLocal(`cost_cell_r${row}_m${bunkerIndex}`).value = coalObj.cost || '';
+      } else {
+        ensureHiddenInputLocal(`gcv_cell_r${row}_m${bunkerIndex}`).value = '';
+        ensureHiddenInputLocal(`cost_cell_r${row}_m${bunkerIndex}`).value = '';
+      }
+    }
+
+    // Also set row-level gcv/cost fields if the row currently has none (keeps UI sensible)
+    if (coalObj) {
+      const gcvEl = document.getElementById('gcvBox' + row);
+      const costEl = document.getElementById('costBox' + row);
+      if (gcvEl && (!gcvEl.value || String(gcvEl.value).trim() === '')) gcvEl.value = coalObj.gcv || '';
+      if (costEl && (!costEl.value || String(costEl.value).trim() === '')) costEl.value = coalObj.cost || '';
+    }
+
+    // set percentage in the found row for the bunker (this is where tonnes → percent is finally written)
+    const pctInput = document.querySelector(`.percentage-input[data-row="${row}"][data-mill="${bunkerIndex}"]`);
+    if (pctInput) {
+      // validate sum for bunker
+      let sum = 0;
+      for (let r = 1; r <= N; r++) {
+        sum += parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${bunkerIndex}"]`)?.value) || 0;
+      }
+
+      // If adding this percent would exceed 100%, block (allow exact 100)
+      if (sum + percent > 100.0001) {
+        alert('Adding this tonnage would exceed 100% for this bunker. Adjust the tonnage or clear a layer first.');
+        return;
+      }
+
+      pctInput.value = String(percent);
+      // fire input so other listeners update
+      pctInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // call existing update functions (same as original)
+    if (typeof calculateBlended === 'function') calculateBlended();
+    if (typeof validateMillPercentages === 'function') validateMillPercentages();
+    if (typeof updateBunkerColors === 'function') updateBunkerColors();
+
+       const more = findLastFilledRowForBunker(bunkerIndex);
+    const clearBtn = document.getElementById('clearLastBtn');
+    if (clearBtn) clearBtn.style.display = more ? 'inline-block' : 'none';
+
+       // --- persist color mapping for this coal selection (REPLACEMENT) ---
+    try{
+      // prefer popup selection values (coalId, coalObj) because the row-select may still be placeholder
+      const val = (coalId !== undefined && String(coalId).trim()) ? String(coalId).trim() : '';
+      const label = (coalObj && (coalObj.coal || coalObj.name)) ? String(coalObj.coal || coalObj.name).trim() : '';
+
+      const colorKey = val ? `id:${val}` : (label ? `name:${label}` : null);
+
+      // debug
+      console.info('[coal-color] SAVE attempt (popup):', { row, bunkerIndex, coalId: val, label, colorKey });
+
+      if(colorKey){
+        if(typeof window.setCoalColor === 'function'){
+          // persistently assign a unique color for this key
+          const assigned = window.setCoalColor(colorKey);
+          const map = JSON.parse(localStorage.getItem('__coalColorMap_v2') || '{}');
+          console.info('[coal-color] assigned:', colorKey, '->', assigned, 'currentMapSize:', Object.keys(map).length, map);
+        } else {
+          console.warn('[coal-color] setCoalColor not available; mapping not saved');
+        }
+      } else {
+        console.warn('[coal-color] could not construct colorKey from popup selection', { coalId, coalObj });
+      }
+    }catch(err){
+      console.warn('[coal-color] error while persisting color:', err);
+    }
+
+
+    // ALWAYS close the popup after a successful save (fixes the UX bug)
+    if (typeof closeCoalPopup === 'function') closeCoalPopup();
+  } catch (e) {
+    console.error('[coal-helper] saveCoalSelection error', e);
+    alert('Error saving layer — see console.');
+  }
+}
+
+
+/* Clear the last (most recently added) layer for a bunker using seq stamps */
+function clearLastLayer() {
+  try {
+    const bunkerIndex = Number(document.getElementById('popupBunkerIndex').value);
+    const N = getNumRows();
+
+    // find the per-cell seq values for this bunker and pick the maximum (latest)
+    let maxSeq = -1;
+    let chosenRow = null;
+    for (let r = 1; r <= N; r++) {
+      const seqEl = document.getElementById(`seq_cell_r${r}_m${bunkerIndex}`);
+      const pctEl = document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${bunkerIndex}"]`);
+      const pctVal = parseFloat(pctEl?.value) || 0;
+      let seqVal = -1;
+      if (seqEl && seqEl.value) seqVal = parseInt(seqEl.value, 10) || -1;
+      // prefer seq, but if seq missing, treat rows with pct as potential candidates using index ordering
+      if (seqVal > maxSeq) {
+        maxSeq = seqVal;
+        chosenRow = r;
+      } else if(seqVal === -1 && pctVal > 0 && maxSeq === -1) {
+        // fallback: if no seqs anywhere, choose topmost filled (previous behavior)
+        chosenRow = (chosenRow === null) ? r : chosenRow;
+      }
+    }
+
+    if (!chosenRow) { alert('No layer to clear'); return; }
+
+    // Clear percentage input
+    const pctInput = document.querySelector(`.percentage-input[data-row="${chosenRow}"][data-mill="${bunkerIndex}"]`);
+    if (pctInput) { pctInput.value = ''; pctInput.dispatchEvent(new Event('input', { bubbles: true })); }
+
+    // Clear per-cell hidden coal/gcv/cost/seq
+    const hidCoal = document.getElementById(`coal_cell_r${chosenRow}_m${bunkerIndex}`);
+    if (hidCoal) hidCoal.value = '';
+    const hidG = document.getElementById(`gcv_cell_r${chosenRow}_m${bunkerIndex}`);
+    if (hidG) hidG.value = '';
+    const hidC = document.getElementById(`cost_cell_r${chosenRow}_m${bunkerIndex}`);
+    if (hidC) hidC.value = '';
+    const hidSeq = document.getElementById(`seq_cell_r${chosenRow}_m${bunkerIndex}`);
+    if (hidSeq) hidSeq.value = '';
+
+    // If user has a helper to set cell coal, call with empty value to preserve any internal invariants
+    if (typeof setCellCoal === 'function') {
+      try { setCellCoal(chosenRow, bunkerIndex, ''); } catch(e){ /* ignore */ }
+    }
+
+    // If this row is no longer used anywhere (no per-cell coal set and no percentages), clear the global row select
+    const sel = document.getElementById(`coalName${chosenRow}`);
+    let usedElsewhere = false;
+    // CHECK ALL 8 mills (0..7)
+    for (let m = 0; m < 8; m++) {
+      const pct = parseFloat(document.querySelector(`.percentage-input[data-row="${chosenRow}"][data-mill="${m}"]`)?.value) || 0;
+      if (pct > 0) { usedElsewhere = true; break; }
+      const perCellCoalEl = document.getElementById(`coal_cell_r${chosenRow}_m${m}`);
+      if (perCellCoalEl && perCellCoalEl.value) { usedElsewhere = true; break; }
+    }
+    if (!usedElsewhere && sel) {
+      sel.value = '';
+    }
+
+    // run existing updates
+    if (typeof calculateBlended === 'function') calculateBlended();
+    if (typeof validateMillPercentages === 'function') validateMillPercentages();
+    if (typeof updateBunkerColors === 'function') updateBunkerColors();
+
+    // *** ensure bunker totals are updated immediately after clearing last layer
+    if (typeof updateBunkerTotalsUI === 'function') updateBunkerTotalsUI();
+
+    const more = findLastFilledRowForBunker(bunkerIndex);
+    const clearBtn = document.getElementById('clearLastBtn');
+    if (clearBtn) clearBtn.style.display = more ? 'inline-block' : 'none';
+    if (!more) closeCoalPopup();
+  } catch (e) {
+    console.error('[coal-helper] clearLastLayer error', e);
+    alert('Error clearing layer — see console.');
+  }
+}
+
+
+/* Wire buttons + popup actions on DOM ready */
+document.addEventListener('DOMContentLoaded', function(){
+  // expose functions globally (for inline handlers)
+  window.openCoalPopup = openCoalPopup;
+  window.closeCoalPopup = closeCoalPopup;
+  window.saveCoalSelection = saveCoalSelection;
+  window.clearLastLayer = clearLastLayer;
+
+  // wire popup buttons
+  const sp = document.getElementById('savePopup');
+  const cp = document.getElementById('cancelPopup');
+  const cl = document.getElementById('clearLastBtn');
+  if(sp) sp.addEventListener('click', saveCoalSelection);
+  if(cp) cp.addEventListener('click', closeCoalPopup);
+  if(cl) cl.addEventListener('click', clearLastLayer);
+
+  // attach click listeners to .add-coal-btn
+  document.querySelectorAll('.add-coal-btn').forEach(btn => {
+    btn.addEventListener('click', (ev) => {
+      ev.preventDefault();
+      const bunkerEl = btn.closest('.bunker');
+      const idx = bunkerEl ? Number(bunkerEl.dataset.bunker) : (btn.dataset.bunker ? Number(btn.dataset.bunker) : 0);
+      openCoalPopup(idx);
+    });
+  });
+
+  // populate dropdowns on load
+  populateHiddenDropdownsAndPopup().catch(e => console.error('[coal-helper] populate error', e));
+
+  // small delayed init to ensure main calculations are present
+  setTimeout(()=>{ if(typeof calculateBlended === 'function') calculateBlended(); if(typeof updateBunkerColors === 'function') updateBunkerColors(); }, 300);
+});
+
+/* update tooltips: iterate rows 1..N */
+function updateBunkerTooltips() {
+  const db = window.COAL_DB || [];
+  const N = getNumRows();
+  document.querySelectorAll('.bunker').forEach((bunkerEl, bIndex) => {
+    const tooltip = bunkerEl.querySelector('.tooltip');
+    if (!tooltip) return;
+    let lines = [];
+    for (let r = 1; r <= N; r++) {
+      const sel = document.getElementById(`coalName${r}`);
+      const percent = document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${bIndex}"]`)?.value || "";
+      if (sel && sel.value && percent) {
+        let coalObj = db.find(c => String(c._id) === String(sel.value)) || db.find(c => String(c.coal||"").toLowerCase() === String(sel.value).toLowerCase());
+        const coalName = coalObj ? coalObj.coal : sel.value;
+        const gcv = coalObj?.gcv || "--";
+        const cost = coalObj?.cost || "--";
+        const aft = document.querySelector(`.aft[data-mill="${bIndex}"]`)?.textContent || "--";
+        lines.push(`${coalName}: ${percent}%\nGCV: ${gcv}\nCost: ${cost}\nAFT: ${aft}`);
+      }
+    }
+    tooltip.textContent = lines.length ? lines.join("\n\n") : "No coal assigned";
+  });
+}
+setInterval(updateBunkerTooltips, 1500);
+
+/* ---------- Patch: bunker totals + live "Next timer" countdowns ---------- */
+(function(){
+  if(window.__bunkerTotalsPatch) return;
+  window.__bunkerTotalsPatch = true;
+
+  const _origCalculateBlended = (typeof calculateBlended === 'function') ? calculateBlended : null;
+
+  // Sum percent for a bunker (reads percentage-input rows 1..N)
+  function getBunkerPercentSum(bIndex){
+    let sum = 0;
+    const N = (typeof NUM_COAL_ROWS !== 'undefined') ? Number(NUM_COAL_ROWS) : (window.NUM_COAL_ROWS || 5);
+    for(let r=1; r<=N; r++){
+      sum += parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${bIndex}"]`)?.value) || 0;
+    }
+    return Math.max(0, Math.min(100, sum));
+  }
+
+  // Update the "Bunker Total" inputs (class total-input) with percent string
+  function updateBunkerTotalsUI(){
+    for(let m=0;m<8;m++){
+      const el = document.querySelector(`.total-input[data-mill="${m}"]`);
+      const sumPct = getBunkerPercentSum(m);
+      if(el){
+        el.value = `${sumPct.toFixed(2)}%`;
+        el.dataset.percent = String(sumPct);
+      }
+    }
+  }
+
+  // Get per-bunker capacity (tries multiple selectors then falls back)
+  function getBunkerCapacityForIndex(bIndex){
+    // attempt common patterns:
+    const el1 = document.querySelector(`.bunker-capacity[data-mill="${bIndex}"]`);
+    if(el1) return Number(el1.value || el1.dataset.value || el1.textContent) || 0;
+    const el2 = document.getElementById('bunkerCapacity' + bIndex);
+    if(el2) return Number(el2.value || el2.dataset.value || el2.textContent) || 0;
+    const el3 = document.getElementById('bunkerCapacity');
+    if(el3) return Number(el3.value || el3.dataset.value || el3.textContent) || 0;
+    // last fallback: function getSingleBunkerCapacity()
+    if(typeof getSingleBunkerCapacity === 'function') return Number(getSingleBunkerCapacity() || 0);
+    return 0;
+  }
+
+  // Compute total seconds for bunker using per-bunker capacity and flow
+  function computeTotalBunkerSeconds(bIndex){
+    // prefer a computeLayerSeconds() if it returns per-layer seconds (keeps compatibility)
+    if(typeof computeLayerSeconds === 'function'){
+      try{
+        const arr = computeLayerSeconds(bIndex) || [];
+        if(Array.isArray(arr) && arr.length) return arr.reduce((a,b)=>a + (Number(b)||0), 0);
+      }catch(e){
+        // fallthrough to capacity/flow calculation
+      }
+    }
+    // fallback: use sumPct / 100 * bunkerCapacity / flow
+    const sumPct = getBunkerPercentSum(bIndex);
+    const bunkerCapacity = getBunkerCapacityForIndex(bIndex);
+    const flow = parseFloat(document.querySelector(`.flow-input[data-mill="${bIndex}"]`)?.value) || 0;
+    if(flow <= 0 || bunkerCapacity <= 0 || sumPct <= 0) return 0;
+    const hours = (sumPct / 100.0) * bunkerCapacity / flow;
+    return hours * 3600;
+  }
+
+  function _formatHMS(sec){
+    if(typeof formatHMS === 'function') return formatHMS(sec);
+    const s = Math.max(0, Math.floor(sec));
+    const hrs = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    return `${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(secs).padStart(2,'0')}`;
+  }
+
+  const totalCountdowns = new Array(6).fill(null).map(()=>({ intervalId: null, remaining: 0 }));
+
+  function _updateTimerUI(bIndex){
+    const el = document.querySelector(`.timer-input[data-mill="${bIndex}"]`);
+    if(!el) return;
+    const rem = totalCountdowns[bIndex].remaining || 0;
+    if(rem > 0){
+      el.value = _formatHMS(rem);
+      el.dataset.seconds = String(Math.max(0, Math.floor(rem)));
+    } else {
+      el.value = '--';
+      el.dataset.seconds = '0';
+    }
+  }
+
+  // function clearTotalCountdown(bIndex){
+  //   const obj = totalCountdowns[bIndex];
+  //   if(obj && obj.intervalId){ clearInterval(obj.intervalId); obj.intervalId = null; }
+  //   obj.remaining = 0;
+  //   _updateTimerUI(bIndex);
+  // }
+
+  function startOrResetTotalCountdown(bIndex, seconds){
+    bIndex = Number(bIndex);
+    if(Number.isNaN(bIndex) || bIndex < 0 || bIndex >= totalCountdowns.length) return;
+    const secs = Math.max(0, Math.floor(Number(seconds) || 0));
+    const obj = totalCountdowns[bIndex];
+
+    if(secs <= 0){ clearTotalCountdown(bIndex); return; }
+
+    if(obj.intervalId){
+      if(Math.abs((obj.remaining || 0) - secs) <= 1){
+        return;
+      }
+      obj.remaining = secs;
+      _updateTimerUI(bIndex);
+      return;
+    }
+
+    obj.remaining = secs;
+    _updateTimerUI(bIndex);
+    obj.intervalId = setInterval(()=>{
+      obj.remaining = Math.max(0, obj.remaining - 1);
+      if(obj.remaining <= 0){
+        clearTotalCountdown(bIndex);
+      } else {
+        _updateTimerUI(bIndex);
+      }
+    }, 1000);
+  }
+
+  // Public helpers
+  window.updateBunkerTotalsUI = updateBunkerTotalsUI;
+  // window.clearTotalCountdown = clearTotalCountdown;
+  window.startOrResetTotalCountdown = startOrResetTotalCountdown;
+  window.computeTotalBunkerSeconds = computeTotalBunkerSeconds;
+
+  // function wrappedCalculateBlended(){
+  //   try{
+  //     if(typeof _origCalculateBlended === 'function'){
+  //       _origCalculateBlended();
+  //     } else {
+  //       console.warn('Original calculateBlended not found — running fallback updates only.');
+  //     }
+  //   } catch(err){
+  //     console.error('Error running original calculateBlended():', err);
+  //   }
+
+  //   try{
+  //     updateBunkerTotalsUI();
+
+  //     for(let m=0;m<8;m++){
+  //       const secs = Math.max(0, Math.floor(computeTotalBunkerSeconds(m) || 0));
+  //       if(secs > 0){
+  //         startOrResetTotalCountdown(m, secs);
+  //       } else {
+  //         clearTotalCountdown(m);
+  //       }
+  //     }
+  //   } catch(err){
+  //     console.error('Error in bunker totals / countdown updates:', err);
+  //   }
+  // }
+
+  // // install wrapper
+  // window.calculateBlended = wrappedCalculateBlended;
+
+  // // run initial update now if the page already called calculateBlended earlier
+  // try{ wrappedCalculateBlended(); } catch(e){}
+
+  window.addEventListener('beforeunload', function(){
+    for(let i=0;i<totalCountdowns.length;i++) if(totalCountdowns[i].intervalId) clearInterval(totalCountdowns[i].intervalId);
+  });
+})();
+</script>
+<script>
+  // -------------------- Save wrapper so Submit button works --------------------
+// Make sure this is loaded before the DOMContentLoaded wiring that binds saveBtn
+async function savePayload(e){
+  if (e && typeof e.preventDefault === 'function') e.preventDefault();
+  const saveBtn = document.getElementById('saveBtn');
+  const loader = document.getElementById('loader');
+
+  try {
+    if (saveBtn) {
+      saveBtn.disabled = true;
+      saveBtn.dataset.origText = saveBtn.textContent || 'Submit';
+      saveBtn.textContent = 'Saving...';
+    }
+    if (loader) loader.style.display = 'block';
+
+    // call the existing saveToServer() that builds payload and does POST/PUT
+    if (typeof saveToServer === 'function') {
+      await saveToServer();
+    } else {
+      // fallback: build payload and call API if saveToServer not present
+      if (typeof collectFormData === 'function') {
+        const payload = collectFormData();
+        const apiBase = window.location.origin + '/api';
+        // try update latest or create
+        let latestId = null;
+        try {
+          const r = await fetch(apiBase + '/blend/latest');
+          if (r.ok) {
+            const j = await r.json();
+            latestId = j && j._id ? j._id : null;
+          }
+        } catch (e) { /* ignore */ }
+
+        const url = latestId ? (apiBase + '/blend/' + latestId) : (apiBase + '/blend');
+        const method = latestId ? 'PUT' : 'POST';
+        const res = await fetch(url, {
+          method,
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify(payload)
+        });
+        if (!res.ok) {
+          const err = await res.json().catch(()=>({ error: 'Save failed' }));
+          throw new Error(err.error || res.statusText || 'Save failed');
+        }
+        const result = await res.json().catch(()=> ({}));
+        if(result && result.id) window.latestBlendId = result.id;
+        alert('Saved successfully.');
+      } else {
+        throw new Error('No saving function available (saveToServer or collectFormData missing).');
+      }
+    }
+  } catch (err) {
+    console.error('savePayload error:', err);
+    alert('Save failed: ' + (err && err.message ? err.message : 'Unknown error'));
+  } finally {
+    if (saveBtn) {
+      saveBtn.disabled = false;
+      saveBtn.textContent = saveBtn.dataset.origText || 'Submit';
+    }
+    if (loader) loader.style.display = 'none';
+  }
+}
+
+// expose globally (so inline DOM wiring can find it)
+window.savePayload = savePayload;
+
+</script>
+<script>
+(function(){
+  if(window.__bunkerOverlayFix_v4) return;
+  window.__bunkerOverlayFix_v4 = true;
+
+  // ensure top-overlay exists and the layout is the positioning context
+  function ensureTopOverlay(){
+    const layout = document.querySelector('.diagram-in-grid .layout');
+    if(!layout) return null;
+    // set positioning context but do NOT change sizing/overflow
+    if(getComputedStyle(layout).position === 'static'){
+      layout.style.position = 'relative'; // only this inline change to provide a positioning context
+    }
+    let overlay = layout.querySelector('.top-overlay');
+    if(!overlay){
+      overlay = document.createElement('div');
+      overlay.className = 'top-overlay';
+      // insert as first child so it layers over layout content
+      layout.insertBefore(overlay, layout.firstChild);
+    }
+    return { layout, overlay };
+  }
+
+  // create overlay buttons once per arrow (idempotent)
+  function createOverlayButtons(){
+    const res = ensureTopOverlay();
+    if(!res) return;
+    const { layout, overlay } = res;
+    const arrows = Array.from(layout.querySelectorAll('.arrow'));
+    // remove stale buttons (index out of range)
+    Array.from(overlay.querySelectorAll('.add-coal-overlay')).forEach(btn=>{
+      const idx = Number(btn.dataset.bunker);
+      if(Number.isNaN(idx) || idx < 0 || idx >= arrows.length) btn.remove();
+    });
+
+    arrows.forEach((arrow, index) => {
+      let btn = overlay.querySelector(`.add-coal-overlay[data-bunker="${index}"]`);
+      if(!btn){
+        btn = document.createElement('button');
+        btn.className = 'add-coal-overlay';
+        btn.dataset.bunker = String(index);
+        btn.setAttribute('aria-label', `Add coal to bunker ${index+1}`);
+        btn.type = 'button';
+        btn.innerText = '+';
+        btn.addEventListener('click', function(ev){
+          ev.stopPropagation();
+          if(typeof window.openCoalPopup === 'function'){
+            window.openCoalPopup(index);
+          } else {
+            console.warn('openCoalPopup not found for add-coal-overlay');
+          }
+        });
+        overlay.appendChild(btn);
+      }
+    });
+  }
+
+  // simple rect intersection helper
+  function rectsIntersect(a,b){
+    return !(b.left >= a.right || b.right <= a.left || b.top >= a.bottom || b.bottom <= a.top);
+  }
+
+  // position overlay buttons relative to layout; never modifies layout size
+  function positionOverlayButtons(){
+    const res = ensureTopOverlay();
+    if(!res) return;
+    const { layout, overlay } = res;
+    const layoutRect = layout.getBoundingClientRect();
+    const arrows = Array.from(layout.querySelectorAll('.arrow'));
+    const coloredRects = Array.from(document.querySelectorAll('.bunker svg rect'))
+      .map(r => r.getBoundingClientRect());
+
+    const rootStyle = getComputedStyle(document.documentElement);
+    const arrowHeadSize = parseFloat(rootStyle.getPropertyValue('--arrow-head-size')) || 10;
+
+    arrows.forEach((arrow, idx) => {
+      const btn = overlay.querySelector(`.add-coal-overlay[data-bunker="${idx}"]`);
+      if(!btn) return;
+      const arrowRect = arrow.getBoundingClientRect();
+
+      // tip coordinates relative to layout
+      const tipY = (arrowRect.top - layoutRect.top) + arrowRect.height + arrowHeadSize;
+      const tipX = (arrowRect.left - layoutRect.left) + (arrowRect.width / 2);
+
+      // measure button or use sensible fallbacks
+      const measuredBtnHeight = (btn.offsetHeight && btn.offsetHeight > 0) ? btn.offsetHeight : 36;
+      const measuredBtnWidth  = (btn.offsetWidth  && btn.offsetWidth  > 0) ? btn.offsetWidth  : 36;
+
+      // horizontal centering via left + translateX(-50%)
+      btn.style.left = `${Math.round(tipX)}px`;
+      btn.style.transform = 'translateX(-50%)';
+
+      // place the button a little below the tip
+      const baseBelowOffset = Math.round(measuredBtnHeight * 0.4) + 12;
+      let desiredTop = Math.round(tipY + baseBelowOffset);
+
+      // clamp inside layout area (use overlay height)
+      const minTop = 6;
+      const maxTop = Math.max(overlay.clientHeight - 6 - measuredBtnHeight, minTop);
+      desiredTop = Math.max(minTop, Math.min(maxTop, desiredTop));
+      btn.style.top = `${desiredTop}px`;
+
+      // avoid overlapping colored rects by nudging down (best-effort)
+      let attempts = 0;
+      const maxAttempts = 8;
+      const stepDown = 6;
+      while(attempts < maxAttempts){
+        const btnBox = btn.getBoundingClientRect();
+        const overlaps = coloredRects.some(rBox => rectsIntersect(btnBox, rBox));
+        if(!overlaps) break;
+        desiredTop = Math.min(maxTop, desiredTop + stepDown);
+        btn.style.top = `${desiredTop}px`;
+        attempts++;
+      }
+    });
+  }
+
+  function refreshOverlays(){
+    createOverlayButtons();
+    // small timeout lets layout settle if called during transitions
+    setTimeout(positionOverlayButtons, 30);
+  }
+
+  // wrap existing updateBunkerColors (if present) so overlay refreshes after colors change
+  if(typeof window.updateBunkerColors === 'function' && !window.__wrappedUpdateBunkerColorsForTip_v4){
+    window.__wrappedUpdateBunkerColorsForTip_v4 = true;
+    const orig = window.updateBunkerColors;
+    window.updateBunkerColors = function(...args){
+      try{ orig.apply(this,args); }catch(e){ console.error(e); }
+      setTimeout(refreshOverlays, 80);
+    };
+  }
+
+  // reposition on resize/orientation change, but do not change layout sizing
+  let _resizeT = null;
+  window.addEventListener('resize', function(){
+    if(_resizeT) clearTimeout(_resizeT);
+    _resizeT = setTimeout(refreshOverlays, 90);
+  });
+  window.addEventListener('orientationchange', function(){ setTimeout(refreshOverlays, 150); });
+
+  document.addEventListener('DOMContentLoaded', function(){
+    refreshOverlays();
+    setTimeout(refreshOverlays, 160);
+  });
+
+  // expose manual refresh for debugging
+  window.__refreshBunkerOverlay = refreshOverlays;
+})();
+</script>
+<script src="/public/input.js"></script>
+<style>
+  /* tooltip */
+  .coal-tooltip {
+    position: absolute;
+    pointer-events: none; /* don't block mouse */
+    background: #fff;
+    color: #111;
+    border: 1px solid rgba(0,0,0,0.12);
+    box-shadow: 0 6px 18px rgba(0,0,0,0.12);
+    padding: 8px 10px;
+    border-radius: 8px;
+    z-index: 10000;
+    font-size: 13px;
+    line-height: 1.3;
+    min-width: 160px;
+    max-width: 320px;
+  }
+  .coal-tooltip .title { font-weight: 600; margin-bottom: 6px; }
+  .coal-tooltip .kv { display:flex; justify-content:space-between; gap:8px; }
+  .coal-tooltip .kv span.key { color:#666; }
+  .coal-tooltip .kv span.val { font-weight:600; text-align:right; }
+</style>
+<script>
+// Improved tooltip (prefers per-cell values; computes AFT if missing)
+(function(){
+  // attach once
+  if(window.__coalTooltipImprovedAttached) return;
+  window.__coalTooltipImprovedAttached = true;
+
+  // ensure tooltip element
+  let tip = document.querySelector('.coal-tooltip.improved');
+  if(!tip){
+    tip = document.createElement('div');
+    tip.className = 'coal-tooltip improved';
+    Object.assign(tip.style, {
+      position:'absolute', display:'none', zIndex:100000,
+      background:'#fff', color:'#111', border:'1px solid rgba(0,0,0,0.12)',
+      boxShadow:'0 6px 18px rgba(0,0,0,0.12)', padding:'8px 10px', borderRadius:'8px',
+      fontSize:'13px', lineHeight:'1.3', minWidth:'160px', maxWidth:'320px', pointerEvents:'none'
+    });
+    document.body.appendChild(tip);
+  }
+
+  function findCoalObj(idOrName){
+    const db = window.COAL_DB || [];
+    if(!idOrName) return null;
+    let f = db.find(c => String(c._id) === String(idOrName) || String(c.id) === String(idOrName));
+    if(f) return f;
+    f = db.find(c => String((c.coal||c.name||'')).toLowerCase() === String(idOrName).toLowerCase());
+    return f || null;
+  }
+
+  function getPerCellCoalId(row, mill){
+    const hid = document.getElementById(`coal_cell_r${row}_m${mill}`);
+    if(hid && hid.value) return hid.value;
+    return '';
+  }
+  function getPerCellGcv(row, mill){
+    const hid = document.getElementById(`gcv_cell_r${row}_m${mill}`);
+    if(hid && hid.value) return hid.value;
+    return '';
+  }
+  function getPerCellCost(row, mill){
+    const hid = document.getElementById(`cost_cell_r${row}_m${mill}`);
+    if(hid && hid.value) return hid.value;
+    return '';
+  }
+
+  function fallbackRowSelectCoal(row){
+    const sel = document.getElementById(`coalName${row}`);
+    if(!sel) return '';
+    // prefer COAL_DB lookup if select value is id
+    if(sel.value){
+      const obj = findCoalObj(sel.value);
+      if(obj) return (obj.coal || obj.name || String(sel.value));
+    }
+    // else return label only if not the placeholder
+    const label = (sel.selectedOptions && sel.selectedOptions[0] && sel.selectedOptions[0].text) || '';
+    if(label && label.trim().toLowerCase() !== 'select coal') return label;
+    return '';
+  }
+
+  function computeBunkerAft(millIndex){
+    // compute blended oxides across rows in this mill (same logic as calculateBlended)
+    const N = (typeof window.NUM_COAL_ROWS !== 'undefined') ? Number(window.NUM_COAL_ROWS) : 5;
+    const oxKeys = ["SiO2","Al2O3","Fe2O3","CaO","MgO","Na2O","K2O","SO3","TiO2"];
+    const ox = {}; oxKeys.forEach(k => ox[k] = 0);
+    let any = false;
+    for(let r=1;r<=N;r++){
+      const pct = parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${millIndex}"]`)?.value) || 0;
+      if(!pct || pct <= 0) continue;
+      any = true;
+      // coal id from per-cell or row select (try per-cell first)
+      const perId = getPerCellCoalId(r,millIndex);
+      let coal = null;
+      if(perId) coal = findCoalObj(perId);
+      if(!coal){
+        // try row select value (may be id)
+        const sel = document.getElementById(`coalName${r}`);
+        if(sel && sel.value) coal = findCoalObj(sel.value);
+        // if still not found, try text label
+        if(!coal && sel && sel.selectedOptions && sel.selectedOptions[0] && sel.selectedOptions[0].text){
+          coal = findCoalObj(sel.selectedOptions[0].text);
+        }
+      }
+      if(!coal) continue;
+      oxKeys.forEach(k=>{
+        const val = coal[k] !== undefined ? (parseFloat(coal[k])||0) : 0;
+        ox[k] += val * (pct/100.0);
+      });
+    }
+    if(!any) return '--';
+    try{
+      if(typeof calcAFT === 'function'){
+        const v = calcAFT(ox);
+        return isFinite(v) ? Number(v).toFixed(2) : '--';
+      }
+    }catch(e){ console.warn('computeBunkerAft calc error', e); }
+    return '--';
+  }
+
+  function buildHtml({name,gcv,cost,aft}){
+    return `
+      <div style="font-weight:600;margin-bottom:6px">${name || 'No coal selected'}</div>
+      <div style="display:flex;justify-content:space-between"><span style="color:#666">GCV</span><span style="font-weight:600">${(gcv===''||gcv===null)? '--' : Number(gcv).toFixed? Number(gcv).toFixed(2) : gcv}</span></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:#666">Cost/MT</span><span style="font-weight:600">${(cost===''||cost===null)? '--' : Number(cost).toFixed? Number(cost).toFixed(2) : cost}</span></div>
+      <div style="height:6px"></div>
+      <div style="display:flex;justify-content:space-between"><span style="color:#666">AFT</span><span style="font-weight:600">${aft || '--'}</span></div>
+    `;
+  }
+
+  // tooltip behavior for rects
+function attachToRects(){
+  const rects = document.querySelectorAll('.bunker svg rect');
+  rects.forEach(rect=>{
+    if(rect.__tooltipHooked) return;
+    rect.__tooltipHooked = true;
+    rect.addEventListener('mouseenter', function(ev){
+      try{
+        const row = Number(this.getAttribute('data-row') || this.dataset.row || 0) || 0;
+        const mill = Number(this.getAttribute('data-mill') || this.dataset.mill || 0) || 0;
+
+        // coal name resolution: prefer per-cell hidden id, else try COAL_DB using id, else use row select label
+        let coalId = getPerCellCoalId(row,mill);
+        let name = '';
+        let gcv = getPerCellGcv(row,mill);
+        let cost = getPerCellCost(row,mill);
+        let aftText = '--';
+
+        let coalObj = null;
+        if(coalId){
+          coalObj = findCoalObj(coalId);
+          if(coalObj) {
+            name = coalObj.coal || coalObj.name || String(coalId);
+            if(!gcv) gcv = coalObj.gcv || coalObj.GCV || '';
+            if(!cost) cost = coalObj.cost || coalObj.Cost || '';
+          } else {
+            name = String(coalId);
+          }
+        } else {
+          // fallback to row-level select but prefer DB lookup if possible
+          name = fallbackRowSelectCoal(row) || '';
+          if(!gcv){
+            const gb = document.getElementById(`gcvBox${row}`);
+            if(gb && gb.value && gb.value.trim()!=='') gcv = gb.value;
+          }
+          if(!cost){
+            const cb = document.getElementById(`costBox${row}`);
+            if(cb && cb.value && cb.value.trim()!=='') cost = cb.value;
+          }
+          // if name still empty but select has value that looks like id, try lookup
+          if(!name){
+            const sel = document.getElementById(`coalName${row}`);
+            if(sel && sel.value){
+              const o = findCoalObj(sel.value);
+              if(o) {
+                coalObj = o;
+                name = o.coal || o.name || sel.value;
+                if(!gcv) gcv = o.gcv || o.GCV || '';
+                if(!cost) cost = o.cost || o.Cost || '';
+              } else {
+                const label = (sel.selectedOptions && sel.selectedOptions[0] && sel.selectedOptions[0].text) || '';
+                if(label && label.trim().toLowerCase() !== 'select coal') name = label;
+              }
+            }
+          }
+        }
+
+        // --- Compute per-coal AFT if we have the coal object ---
+        if(!coalObj && coalId) coalObj = findCoalObj(coalId);
+        if(coalObj){
+          const oxKeys = ["SiO2","Al2O3","Fe2O3","CaO","MgO","Na2O","K2O","SO3","TiO2"];
+          const ox = {};
+          oxKeys.forEach(k => {
+            const v = coalObj[k] !== undefined ? (parseFloat(coalObj[k]) || 0) : 0;
+            ox[k] = v;
+          });
+          try {
+            if(typeof calcAFT === 'function'){
+              const v = calcAFT(ox);
+              aftText = isFinite(v) ? Number(v).toFixed(2) : '--';
+            }
+          } catch(e){
+            aftText = '--';
+          }
+        } else {
+          // fallback: if per-coal data not available, try to compute blended AFT for the bunker
+          const bunkerAft = computeBunkerAft ? computeBunkerAft(mill) : (document.querySelector(`.aft[data-mill="${mill}"]`)?.textContent || '--');
+          aftText = (bunkerAft === '--' || bunkerAft === undefined) ? '--' : (isFinite(Number(bunkerAft)) ? Number(bunkerAft).toFixed(2) : bunkerAft);
+        }
+
+        tip.innerHTML = buildHtml({ name: name || 'No coal selected', gcv: gcv || '', cost: cost || '', aft: aftText });
+        tip.style.display = 'block';
+        tip.setAttribute('aria-hidden','false');
+        tip.style.left = (ev.pageX + 12) + 'px';
+        tip.style.top  = (ev.pageY + 12) + 'px';
+      }catch(err){ console.error('tooltip enter error', err); }
+    });
+    rect.addEventListener('mousemove', function(ev){
+      tip.style.left = (ev.pageX + 12) + 'px';
+      tip.style.top  = (ev.pageY + 12) + 'px';
+    });
+    rect.addEventListener('mouseleave', function(){
+      tip.style.display = 'none';
+      tip.setAttribute('aria-hidden','true');
+    });
+  });
+}
+
+
+  // initial attach + observe DOM for new rects
+  attachToRects();
+  const grid = document.querySelector('.mills-grid') || document.body;
+  const mo = new MutationObserver((muts) => attachToRects());
+  mo.observe(grid, { childList:true, subtree:true });
+
+  // also try to trigger update if available (in case rects didn't exist earlier)
+  try { if(typeof calculateBlended === 'function') calculateBlended(); if(typeof updateBunkerColors === 'function') updateBunkerColors(); } catch(e){}
+
+  console.log('[coal-tooltip] improved tooltip active');
+})();
+
+// ---------- Live countdown manager (paste into your script) ----------
+(function(){
+  if(window.__liveCountdownManager) return;
+  window.__liveCountdownManager = true;
+
+  const COUNT = 6; // number of bunkers
+  const live = new Array(COUNT).fill(null).map(()=>({
+    intervalId: null,
+    remaining: 0,
+    lastSet: 0
+  }));
+
+  function formatHMS_local(sec){
+    // reuse your existing formatHMS if present
+    if(typeof formatHMS === 'function') return formatHMS(sec);
+    sec = Math.max(0, Math.floor(sec||0));
+    const hrs = Math.floor(sec/3600);
+    const mins = Math.floor((sec%3600)/60);
+    const s = sec % 60;
+    return `${String(hrs).padStart(2,'0')}:${String(mins).padStart(2,'0')}:${String(s).padStart(2,'0')}`;
+  }
+
+  function updateDisplay(b){
+    const el = document.getElementById(`timeToEmpty${b}`);
+    if(!el) return;
+    if(live[b].remaining > 0){
+      el.value = formatHMS_local(live[b].remaining);
+      el.dataset.seconds = String(Math.max(0, Math.floor(live[b].remaining)));
+    } else {
+      el.value = '--';
+      el.dataset.seconds = '0';
+    }
+  }
+
+  function clearBunker(b){
+    if(live[b].intervalId){ clearInterval(live[b].intervalId); live[b].intervalId = null; }
+    live[b].remaining = 0;
+    live[b].lastSet = 0;
+    updateDisplay(b);
+  }
+
+  function setLiveBunkerSeconds(b, seconds){
+    b = Number(b);
+    if(Number.isNaN(b) || b < 0 || b >= COUNT) return;
+    const secs = Math.max(0, Math.floor(Number(seconds) || 0));
+    // if zero, clear
+    if(secs <= 0){ clearBunker(b); return; }
+
+    // If there's already an interval, replace remaining with new secs (reset)
+    if(live[b].intervalId){
+      live[b].remaining = secs;
+      live[b].lastSet = secs;
+      updateDisplay(b);
+      return;
+    }
+
+    // start new interval
+    live[b].remaining = secs;
+    live[b].lastSet = secs;
+    updateDisplay(b);
+    live[b].intervalId = setInterval(()=>{
+      live[b].remaining = Math.max(0, live[b].remaining - 1);
+      if(live[b].remaining <= 0){
+        clearBunker(b);
+      } else {
+        updateDisplay(b);
+      }
+    }, 1000);
+  }
+
+  // expose globally
+  window.setLiveBunkerSeconds = setLiveBunkerSeconds;
+  window.clearLiveBunker = clearBunker;
+  window.clearAllLiveBunkers = function(){ for(let i=0;i<COUNT;i++) clearBunker(i); };
+
+  // auto-init: if there are prefilled dataset.seconds on page, start them
+  document.addEventListener('DOMContentLoaded', function(){
+    for(let i=0;i<COUNT;i++){
+      const el = document.getElementById(`timeToEmpty${i}`);
+      const secs = el ? Number(el.dataset.seconds || el.getAttribute('data-seconds') || 0) : 0;
+      if(secs > 0) setLiveBunkerSeconds(i, secs);
+    }
+  });
+})();
+
+</script>
+<script>
+/* Live per-bunker countdown manager — strict 1s ticks, percent synced to remaining seconds.
+   Behavior:
+   - Every second: lossThisSecond = currentTotalPercent / remainingSeconds
+   - Apply lossThisSecond once, then decrement remaining by 1.
+   - When remaining reaches 0, percentages are forced to 0.
+*/
+(function(){
+  'use strict';
+  if(window.__liveBunkerTimers) return;
+  window.__liveBunkerTimers = true;
+
+  const BUNKER_COUNT = 8;
+
+  // helpers
+  function pad2(n){ return String(n).padStart(2,'0'); }
+  function formatHMS(totalSeconds){
+    const s = Math.max(0, Math.floor(Number(totalSeconds) || 0));
+    const hrs = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    return `${pad2(hrs)}:${pad2(mins)}:${pad2(secs)}`;
+  }
+  function parsePercent(raw){
+    if(raw == null) return 0;
+    let s = String(raw).trim();
+    if(s === '') return 0;
+    if(s.endsWith('%')) s = s.slice(0,-1);
+    const v = parseFloat(s);
+    return isFinite(v) ? v : 0;
+  }
+  function parseNumber(raw){
+    if(raw == null) return 0;
+    const v = parseFloat(String(raw).trim());
+    return isFinite(v) ? v : 0;
+  }
+
+  // DOM helpers
+  function getTotalPercentForBunker(bIndex){
+    const nodes = document.querySelectorAll(`.percentage-input[data-mill="${bIndex}"]`);
+    let total = 0;
+    nodes.forEach(n => { total += parsePercent(n.value); });
+    if(total < 0) total = 0;
+    if(total > 100) total = 100;
+    return total;
+  }
+  function getBunkerCapacity(){
+    const el = document.getElementById('bunkerCapacity');
+    return el ? parseNumber(el.value) : 0;
+  }
+  function getFlowForBunker(bIndex){
+    const el = document.querySelector(`.flow-input[data-mill="${bIndex}"]`);
+    return el ? parseNumber(el.value) : 0;
+  }
+
+  // format percent to write to inputs (2 decimals, drop trailing .00)
+  function formatPercentValue(v){
+    if(!isFinite(v) || Math.abs(v) < 1e-9) return '0';
+    const s = v.toFixed(2);
+    return String(Number(s));
+  }
+
+  // write zero to every percent input of bunker
+  function setPercentagesToZero(bIndex){
+    const nodes = document.querySelectorAll(`.percentage-input[data-mill="${bIndex}"]`);
+    nodes.forEach(n => {
+      const orig = String(n.value || '').trim();
+      const hadPct = orig.endsWith('%');
+      n.value = hadPct ? '0%' : '0';
+    });
+  }
+
+  // proportionally reduce percentage inputs by lossAmount (percent units; called once per second)
+  function decrementPercentagesBy(bIndex, lossAmount){
+    if(!(lossAmount > 0)) return;
+    const nodes = Array.from(document.querySelectorAll(`.percentage-input[data-mill="${bIndex}"]`));
+    if(nodes.length === 0) return;
+
+    // read current values & suffix
+    const items = nodes.map(n => {
+      const raw = String(n.value || '').trim();
+      return { node: n, value: parsePercent(raw), hadPct: raw.endsWith('%') };
+    });
+
+    let currentTotal = items.reduce((s,it) => s + it.value, 0);
+    if(currentTotal <= 0) return;
+
+    // if loss >= total, zero everything
+    if(lossAmount >= currentTotal - 1e-9){
+      nodes.forEach(n => {
+        const hadPct = String(n.value || '').trim().endsWith('%');
+        n.value = hadPct ? '0%' : '0';
+      });
+      return;
+    }
+
+    // compute new values proportionally; adjust last element to fix rounding drift
+    const newVals = [];
+    let acc = 0;
+    for(let i=0;i<items.length;i++){
+      const it = items[i];
+      const proportion = (currentTotal > 0) ? (it.value / currentTotal) : 0;
+      const delta = lossAmount * proportion;
+      const newV = Math.max(0, it.value - delta);
+      newVals.push({ node: it.node, value: newV, hadPct: it.hadPct });
+      acc += newV;
+    }
+
+    const targetTotal = currentTotal - lossAmount;
+    const diff = targetTotal - acc;
+    if(Math.abs(diff) > 1e-6){
+      // absorb diff into largest remaining value
+      let idx = -1, maxVal = -1;
+      for(let i=0;i<newVals.length;i++){
+        if(newVals[i].value > maxVal){ maxVal = newVals[i].value; idx = i; }
+      }
+      if(idx >= 0){
+        newVals[idx].value = Math.max(0, newVals[idx].value + diff);
+      }
+    }
+
+    // write back
+    newVals.forEach(it => {
+      const str = formatPercentValue(it.value);
+      it.node.value = it.hadPct ? (str + '%') : str;
+    });
+  }
+
+  // per-bunker state
+  const timers = new Array(BUNKER_COUNT).fill(null).map(() => ({
+    intervalId: null,
+    remaining: 0,             // integer seconds left
+    lastKnownTotalSeconds: 0, // original seconds computed when started
+    startTotalPct: 0         // percent at start (kept for reference only)
+  }));
+
+  function _updateTimerUI(bIndex){
+    const el = document.getElementById('nextTimer' + bIndex);
+    if(!el) return;
+    const rem = Math.max(0, Math.floor(timers[bIndex].remaining || 0));
+    if(rem > 0){
+      el.value = formatHMS(rem);
+      el.dataset.seconds = String(rem);
+    } else {
+      el.value = '';
+      el.dataset.seconds = '0';
+    }
+  }
+
+  function clearBunkerTimer(bIndex, dueToExpiry){
+    const t = timers[bIndex];
+    if(!t) return;
+    if(t.intervalId){ clearInterval(t.intervalId); t.intervalId = null; }
+    t.remaining = 0;
+    t.lastKnownTotalSeconds = 0;
+    t.startTotalPct = 0;
+    _updateTimerUI(bIndex);
+    if(dueToExpiry){
+      setPercentagesToZero(bIndex);
+    }
+  }
+
+  // start/restart timer (ensure fullSeconds >= 1)
+  function setBunkerTimer(bIndex, fullSeconds, startTotalPct){
+    bIndex = Number(bIndex);
+    if(isNaN(bIndex) || bIndex < 0 || bIndex >= timers.length) return;
+    const secs = Math.max(1, Math.floor(Number(fullSeconds) || 0)); // ensure >=1
+    const t = timers[bIndex];
+
+    // if running and almost same length, update start pct and keep running
+    if(t.intervalId && Math.abs((t.lastKnownTotalSeconds||0) - secs) <= 1){
+      t.startTotalPct = Number(startTotalPct) || t.startTotalPct || 0;
+      return;
+    }
+
+    if(t.intervalId) clearBunkerTimer(bIndex);
+
+    t.remaining = secs;
+    t.lastKnownTotalSeconds = secs;
+    t.startTotalPct = Number(startTotalPct) || 0;
+    _updateTimerUI(bIndex);
+
+    // 1-second tick: compute lossThisSecond based on current total & remaining seconds
+    t.intervalId = setInterval(() => {
+      // read current total percent live
+      const currentTotal = getTotalPercentForBunker(bIndex);
+      const remainingSec = Math.max(1, Math.floor(t.remaining || 1)); // protect divide by zero
+
+      // compute a loss that sums to currentTotal across remainingSec seconds
+      const lossThisSecond = currentTotal / remainingSec;
+
+      if(lossThisSecond > 0){
+        decrementPercentagesBy(bIndex, lossThisSecond);
+      }
+
+      // now decrement remaining by 1 (integer tick)
+      t.remaining = Math.max(0, Math.floor(t.remaining - 1));
+
+      if(t.remaining <= 0){
+        // ensure exactly zero
+        clearBunkerTimer(bIndex, true);
+      } else {
+        _updateTimerUI(bIndex);
+      }
+    }, 1000);
+  }
+
+  // compute seconds from formula and start/clear
+  function computeAndStartForBunker(bIndex){
+    const totalPct = getTotalPercentForBunker(bIndex); // 0..100
+    const bunkerCap = getBunkerCapacity();
+    const flow = getFlowForBunker(bIndex);
+
+    if(totalPct <= 0 || bunkerCap <= 0 || flow <= 0){
+      clearBunkerTimer(bIndex);
+      return 0;
+    }
+
+    // hours = (totalPct/100 * bunkerCap) / flow
+    // seconds = hours * 3600
+    const hours = (totalPct / 100) * bunkerCap / flow;
+    const seconds = Math.max(1, Math.floor(hours * 3600)); // ensure at least 1s
+
+    setBunkerTimer(bIndex, seconds, totalPct);
+    return seconds;
+  }
+
+  function computeAllAndStart(){
+    for(let i=0;i<BUNKER_COUNT;i++) computeAndStartForBunker(i);
+  }
+
+  // wire inputs -> recompute
+  function wireInputs(){
+    document.querySelectorAll('.percentage-input').forEach(inp => {
+      if(inp.__liveTimersWired) return;
+      inp.__liveTimersWired = true;
+      inp.addEventListener('input', function(){
+        const b = this.getAttribute('data-mill');
+        if(b === null) computeAllAndStart();
+        else computeAndStartForBunker(Number(b));
+      });
+      inp.addEventListener('change', function(){
+        const b = this.getAttribute('data-mill');
+        if(b === null) computeAllAndStart();
+        else computeAndStartForBunker(Number(b));
+      });
+    });
+
+    document.querySelectorAll('.flow-input').forEach(inp => {
+      if(inp.__liveTimersWired) return;
+      inp.__liveTimersWired = true;
+      inp.addEventListener('input', function(){
+        const b = this.getAttribute('data-mill');
+        if(b === null) computeAllAndStart();
+        else computeAndStartForBunker(Number(b));
+      });
+      inp.addEventListener('change', function(){
+        const b = this.getAttribute('data-mill');
+        if(b === null) computeAllAndStart();
+        else computeAndStartForBunker(Number(b));
+      });
+    });
+
+    const cap = document.getElementById('bunkerCapacity');
+    if(cap && !cap.__liveTimersWired){
+      cap.__liveTimersWired = true;
+      cap.addEventListener('input', computeAllAndStart);
+      cap.addEventListener('change', computeAllAndStart);
+    }
+  }
+
+  // init
+  function init(){
+    wireInputs();
+    for(let i=0;i<BUNKER_COUNT;i++){
+      if(!document.getElementById('nextTimer'+i)){
+        const fallback = document.createElement('input');
+        fallback.type = 'text';
+        fallback.id = 'nextTimer' + i;
+        fallback.className = 'timers-input';
+        fallback.style.display = 'none';
+        document.body.appendChild(fallback);
+      }
+    }
+    computeAllAndStart();
+  }
+
+  if(document.readyState === 'loading'){
+    document.addEventListener('DOMContentLoaded', init);
+  } else {
+    init();
+  }
+
+  // exports & cleanup
+  window.setBunkerTimer = setBunkerTimer;
+  window.clearBunkerTimer = clearBunkerTimer;
+  window.computeAndStartForBunker = computeAndStartForBunker;
+  window.computeAllAndStart = computeAllAndStart;
+  window.addEventListener('beforeunload', function(){
+    for(let i=0;i<timers.length;i++) if(timers[i].intervalId) clearInterval(timers[i].intervalId);
+  });
+})();
+</script>
+<script>
+/* Robust live bunker timer + percent drain (fixed selector & resilience)
+   - Place this near end of body (after DOM & your markup).
+   - Works with:
+       .percentage-input[data-mill="X"]   (per-row % inputs or elements)
+       .flow-input[data-mill="X"]         (bunker flow TPH inputs)  -- IMPORTANT: totals/timers must NOT be selected as flow
+       .total-inputs[data-mill="X"]       (bunker total display)
+       #bunkerCapacity                     (single bunker capacity input)
+       #nextTimer0..#nextTimer5           (timer display inputs) - created if missing
+   - Exposes:
+       window.startBunkerTimer(index, seconds)
+       window.stopBunkerTimer(index)
+       window.computeAllAndStart()
+*/
+(function(){
+  'use strict';
+  if(window.__bunkerManagerV2) return;
+  window.__bunkerManagerV2 = true;
+
+  const BUNKER_COUNT = 8;
+
+  // ---------- small helpers ----------
+  const safeParse = v => {
+    if(v == null) return 0;
+    let s = String(v).trim();
+    if(s === '') return 0;
+    if(s.endsWith('%')) s = s.slice(0, -1);
+    const n = Number.parseFloat(s);
+    return Number.isFinite(n) ? n : 0;
+  };
+  const fmtPct = n => (Number(n || 0)).toFixed(2) + '%';
+  const pad2 = n => String(n).padStart(2, '0');
+  const formatHMS = seconds => {
+    const s = Math.max(0, Math.floor(Number(seconds) || 0));
+    const hrs = Math.floor(s / 3600);
+    const mins = Math.floor((s % 3600) / 60);
+    const secs = s % 60;
+    return `${pad2(hrs)}:${pad2(mins)}:${pad2(secs)}`;
+  };
+
+  // ---------- element helpers (stricter selectors) ----------
+  function getTimerEl(i){
+    return document.getElementById('nextTimer' + i) || document.querySelector(`.timers-input[data-mill="${i}"]`);
+  }
+  function ensureTimerEl(i){
+    let el = getTimerEl(i);
+    if(el) return el;
+    el = document.createElement('input');
+    el.type = 'text';
+    el.id = 'nextTimer' + i;
+    el.className = 'timers-input';
+    el.style.display = 'none';
+    document.body.appendChild(el);
+    return el;
+  }
+  // total inputs are explicitly .total-inputs
+  function getTotalEl(i){
+    return document.querySelector(`.total-inputs[data-mill="${i}"]`) || document.getElementById('bunkerTotal' + i);
+  }
+  function ensureTotalEl(i){
+    let el = getTotalEl(i);
+    if(el) {
+      if(!el.id) el.id = 'bunkerTotal' + i;
+      return el;
+    }
+    const container = document.querySelector('.mills-grid') || document.querySelector('.main-container') || document.body;
+    const wrapper = document.createElement('div');
+    wrapper.className = 'mill';
+    const input = document.createElement('input');
+    input.type = 'text';
+    input.className = 'flow-input total-inputs';
+    input.setAttribute('data-mill', String(i));
+    input.id = 'bunkerTotal' + i;
+    input.placeholder = 'TPH';
+    wrapper.appendChild(input);
+    container.appendChild(wrapper);
+    return input;
+  }
+  // row elements (may be inputs or other elements)
+  function getRowEls(i){
+    return Array.from(document.querySelectorAll(`.percentage-input[data-mill="${i}"]`));
+  }
+  // IMPORTANT: pick the flow (TPH) input but exclude .total-inputs and .timers-input
+  function getFlowEl(i){
+    return document.querySelector(`.flow-input[data-mill="${i}"]:not(.total-inputs):not(.timers-input)`);
+  }
+  function getCapacityEl(){
+    return document.getElementById('bunkerCapacity');
+  }
+
+  // ---------- state ----------
+  const bunkers = new Array(BUNKER_COUNT).fill(null).map(()=>({
+    intervalId: null,
+    initialSeconds: 0,
+    remaining: 0,
+    initialTotal: 0,
+    initialRowVals: [] // [{el, origVal}]
+  }));
+
+  // ---------- core functions ----------
+  function readValueFromEl(el){
+    if(!el) return 0;
+    // if it's an input/textarea/select use .value else fallback to textContent
+    try {
+      if('value' in el) return safeParse(el.value || el.dataset.percent || '');
+    } catch(e){}
+    try { return safeParse(el.textContent || el.innerText || ''); } catch(e){ return 0; }
+  }
+
+  function writeValueToEl(el, valStr){
+    if(!el) return;
+    try {
+      if('value' in el) { el.value = valStr; return; }
+    } catch(e){}
+    try { el.textContent = valStr; } catch(e){}
+  }
+
+  function captureBreakdown(i){
+    const rows = getRowEls(i);
+    const vals = rows.map(el => ({ el, origVal: readValueFromEl(el) }));
+    let total = vals.reduce((s, r)=> s + (Number(r.origVal)||0), 0);
+    if(total <= 0){
+      const totEl = getTotalEl(i);
+      if(totEl) total = readValueFromEl(totEl);
+    }
+    total = Math.max(0, Math.min(100, total));
+    return { vals, total };
+  }
+
+  function computeSecondsFromFormula(i){
+    const capEl = getCapacityEl();
+    const bunkerCap = capEl ? readValueFromEl(capEl) : 0;
+    const flowEl = getFlowEl(i);
+    const flow = flowEl ? readValueFromEl(flowEl) : 0;
+    const totalPct = (() => {
+      const rows = getRowEls(i);
+      if(rows.length){
+        return rows.reduce((s, el) => s + readValueFromEl(el), 0);
+      }
+      const totEl = getTotalEl(i);
+      return totEl ? readValueFromEl(totEl) : 0;
+    })();
+    if(totalPct <= 0 || bunkerCap <= 0 || flow <= 0) return 0;
+    const hours = (totalPct / 100) * bunkerCap / flow;
+    return Math.max(0, Math.floor(hours * 3600));
+  }
+
+  function updateTimerUI(i){
+    try{
+      const el = ensureTimerEl(i);
+      const state = bunkers[i];
+      const rem = state.remaining || 0;
+      if(rem > 0){
+        writeValueToEl(el, formatHMS(rem));
+        el.dataset.seconds = String(Math.max(0, Math.floor(rem)));
+      } else {
+        writeValueToEl(el, '');
+        el.dataset.seconds = '0';
+      }
+    }catch(e){
+      console.error('updateTimerUI error', e);
+    }
+  }
+
+  function startBunker(i, fullSeconds){
+    try {
+      i = Number(i);
+      if(!Number.isFinite(i) || i < 0 || i >= BUNKER_COUNT) return;
+      const state = bunkers[i];
+
+      if(state.intervalId){ clearInterval(state.intervalId); state.intervalId = null; }
+
+      const secs = Math.max(0, Math.floor(Number(fullSeconds) || 0));
+      if(secs <= 0){ stopBunker(i); return; }
+
+      const cb = captureBreakdown(i);
+      if(!cb || cb.total <= 0){
+        const totEl = ensureTotalEl(i);
+        if(totEl) writeValueToEl(totEl, fmtPct(cb.total));
+        return;
+      }
+
+      state.initialRowVals = cb.vals;
+      state.initialTotal = Math.max(0, Math.min(100, cb.total));
+      state.initialSeconds = secs;
+      state.remaining = secs;
+
+      const tEl = ensureTimerEl(i);
+      tEl.dataset.fullSeconds = String(state.initialSeconds);
+
+      const totalEl = ensureTotalEl(i);
+      if(totalEl){
+        writeValueToEl(totalEl, fmtPct(state.initialTotal));
+        totalEl.dataset.percent = String(Number(state.initialTotal).toFixed(2));
+      }
+
+      updateTimerUI(i);
+
+      state.intervalId = setInterval(() => {
+        try{
+          state.remaining = Math.max(0, state.remaining - 1);
+          const initS = Math.max(1, state.initialSeconds || 1);
+          const ratio = state.initialTotal > 0 ? (state.remaining <= 0 ? 0 : (state.remaining / initS)) : 0;
+          const remainingTotal = state.initialTotal * ratio;
+
+          const totalEl2 = ensureTotalEl(i);
+          if(totalEl2){
+            writeValueToEl(totalEl2, fmtPct(remainingTotal));
+            totalEl2.dataset.percent = String(Number(remainingTotal).toFixed(2));
+          }
+
+          if(state.initialTotal > 0 && Array.isArray(state.initialRowVals)){
+            state.initialRowVals.forEach(item => {
+              try{
+                const orig = Number(item.origVal) || 0;
+                const newVal = orig * ratio;
+                if(newVal <= 0.0001) writeValueToEl(item.el, '');
+                else writeValueToEl(item.el, Number(newVal).toFixed(2));
+              }catch(_){} // ignore per-item errors
+            });
+          }
+
+          updateTimerUI(i);
+
+          if(state.remaining <= 0){
+            clearInterval(state.intervalId);
+            state.intervalId = null;
+            state.initialRowVals = [];
+            state.initialTotal = 0;
+            state.initialSeconds = 0;
+            state.remaining = 0;
+            if(totalEl2){ writeValueToEl(totalEl2, fmtPct(0)); totalEl2.dataset.percent = '0'; }
+            getRowEls(i).forEach(r => { try { writeValueToEl(r, ''); } catch(_){} });
+            const tEl2 = getTimerEl(i);
+            if(tEl2) delete tEl2.dataset.fullSeconds;
+            updateTimerUI(i);
+          }
+        } catch(err){
+          console.error('bunker tick error for', i, err);
+          try{ clearInterval(state.intervalId); }catch(e){}
+          state.intervalId = null;
+        }
+      }, 1000);
+
+    } catch(e){
+      console.error('startBunker error', e);
+    }
+  }
+
+  function stopBunker(i){
+    try{
+      i = Number(i);
+      if(!Number.isFinite(i) || i < 0 || i >= BUNKER_COUNT) return;
+      const state = bunkers[i];
+      if(state && state.intervalId){ clearInterval(state.intervalId); state.intervalId = null; }
+      state.initialRowVals = [];
+      state.initialTotal = 0;
+      state.initialSeconds = 0;
+      state.remaining = 0;
+      const tEl = getTimerEl(i);
+      if(tEl) { writeValueToEl(tEl, ''); tEl.dataset.seconds = '0'; delete tEl.dataset.fullSeconds; }
+      updateTimerUI(i);
+    } catch(e){ console.error('stopBunker error', e); }
+  }
+
+  // when rows change while draining: keep remaining as-is, treat remaining as fullSeconds for new breakdown
+  function refreshDrainWithRemaining(i){
+    try{
+      i = Number(i);
+      if(!Number.isFinite(i) || i < 0 || i >= BUNKER_COUNT) return;
+      const state = bunkers[i];
+      if(!state || !state.intervalId || state.remaining <= 0) return;
+      const rem = state.remaining;
+      const cb = captureBreakdown(i);
+      if(!cb || cb.total <= 0) return;
+
+      // Set new breakdown but preserve remaining seconds (do NOT reset to full again)
+      // We'll treat remaining as the duration over which this new total should drain to 0
+      state.initialRowVals = cb.vals;
+      state.initialTotal = Math.max(0, Math.min(100, cb.total));
+      // set initialSeconds to remaining but DO NOT alter remaining (so it continues from current remaining)
+      state.initialSeconds = Math.max(1, Math.floor(rem));
+      // keep state.remaining unchanged (so ratio uses remaining / initialSeconds)
+      // update dataset and UI
+      const tEl = ensureTimerEl(i);
+      if(tEl) tEl.dataset.fullSeconds = String(state.initialSeconds);
+      const totalEl = ensureTotalEl(i);
+      if(totalEl) { writeValueToEl(totalEl, fmtPct(state.initialTotal)); totalEl.dataset.percent = String(Number(state.initialTotal).toFixed(2)); }
+      updateTimerUI(i);
+
+    } catch(e){
+      console.error('refreshDrainWithRemaining error', e);
+    }
+  }
+
+  function computeAndStart(i){
+    try {
+      const secs = computeSecondsFromFormula(i);
+      if(secs > 0) startBunker(i, secs);
+      else stopBunker(i);
+      return secs;
+    } catch(e){ console.error('computeAndStart error', e); return 0; }
+  }
+  function computeAllAndStart(){
+    for(let i=0;i<BUNKER_COUNT;i++) computeAndStart(i);
+  }
+
+  // ---------- wiring (use stricter selectors and avoid totals/timers) ----------
+  function wireRowInputs(){
+    document.querySelectorAll('.percentage-input').forEach(inp => {
+      if(inp.__bunkerManagerWired) return;
+      inp.__bunkerManagerWired = true;
+      inp.addEventListener('input', function(){
+        const b = this.getAttribute('data-mill');
+        if(b === null || b === undefined){
+          for(let i=0;i<BUNKER_COUNT;i++){
+            const totalEl = ensureTotalEl(i);
+            if(totalEl) writeValueToEl(totalEl, fmtPct(captureBreakdown(i).total));
+          }
+          return;
+        }
+        const bi = Number(b);
+        const totEl = ensureTotalEl(bi);
+        if(totEl) { writeValueToEl(totEl, fmtPct(captureBreakdown(bi).total)); totEl.dataset.percent = String(Number(captureBreakdown(bi).total).toFixed(2)); }
+        if(bunkers[bi] && bunkers[bi].intervalId) refreshDrainWithRemaining(bi);
+      });
+      inp.addEventListener('change', () => inp.dispatchEvent(new Event('input',{bubbles:true})));
+    });
+  }
+
+  function wireFlowInputs(){
+    // strict: pick flow inputs excluding totals/timers
+    document.querySelectorAll('.flow-input[data-mill]').forEach(inp => {
+      // ignore if it's a total or a timer input
+      if(inp.classList.contains('total-inputs') || inp.classList.contains('timers-input')) return;
+      if(inp.__bunkerManagerWired) return;
+      inp.__bunkerManagerWired = true;
+      inp.addEventListener('input', function(){
+        const b = this.getAttribute('data-mill');
+        if(b === null || b === undefined){
+          computeAllAndStart();
+          return;
+        }
+        const bi = Number(b);
+        if(bunkers[bi] && bunkers[bi].intervalId){
+          const secs = computeSecondsFromFormula(bi);
+          if(secs > 0){
+            stopBunker(bi);
+            startBunker(bi, secs);
+          } else stopBunker(bi);
+        } else {
+          const totEl = ensureTotalEl(bi);
+          if(totEl) writeValueToEl(totEl, fmtPct(captureBreakdown(bi).total));
+        }
+      });
+      inp.addEventListener('change', ()=> inp.dispatchEvent(new Event('input',{bubbles:true})));
+    });
+  }
+
+  function wireCapacity(){
+    const cap = getCapacityEl();
+    if(!cap) return;
+    if(cap.__bunkerManagerWired) return;
+    cap.__bunkerManagerWired = true;
+    cap.addEventListener('input', computeAllAndStart);
+    cap.addEventListener('change', computeAllAndStart);
+  }
+
+  // ---------- init ----------
+  function init(){
+    for(let i=0;i<BUNKER_COUNT;i++) ensureTimerEl(i);
+    for(let i=0;i<BUNKER_COUNT;i++) ensureTotalEl(i);
+    wireRowInputs();
+    wireFlowInputs();
+    wireCapacity();
+    for(let i=0;i<BUNKER_COUNT;i++){
+      const totEl = ensureTotalEl(i);
+      if(totEl) writeValueToEl(totEl, fmtPct(captureBreakdown(i).total));
+    }
+  }
+
+  if(document.readyState === 'loading') document.addEventListener('DOMContentLoaded', init); else init();
+
+  // ---------- public API ----------
+  window.bunkerManager = {
+    startBunker: startBunker,
+    stopBunker: stopBunker,
+    computeAndStart: computeAndStart,
+    computeAllAndStart: computeAllAndStart,
+    captureBreakdown: captureBreakdown,
+    computeSecondsFromFormula: computeSecondsFromFormula,
+    formatHMS: formatHMS
+  };
+
+  window.startBunkerTimer = startBunker;
+  window.stopBunkerTimer = stopBunker;
+  window.computeAllAndStart = computeAllAndStart;
+
+  // cleanup
+  window.addEventListener('beforeunload', () => {
+    for(let i=0;i<BUNKER_COUNT;i++) if(bunkers[i].intervalId) clearInterval(bunkers[i].intervalId);
+  });
+
+})();
+</script>
+
+<!-- REPLACE the previous clearLastLayer() in input.html with this -->
+<script>
+function clearLastLayer() {
+  try {
+    const bunkerIndex = Number(document.getElementById('popupBunkerIndex').value);
+    const N = getNumRows();
+
+    // find the per-cell seq values for this bunker and pick the maximum (latest)
+    let maxSeq = -1;
+    let chosenRow = null;
+    for (let r = 1; r <= N; r++) {
+      const seqEl = document.getElementById(`seq_cell_r${r}_m${bunkerIndex}`);
+      const pctEl = document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${bunkerIndex}"]`);
+      const pctVal = parseFloat(pctEl?.value) || 0;
+      let seqVal = -1;
+      if (seqEl && seqEl.value) seqVal = parseInt(seqEl.value, 10) || -1;
+      // prefer seq, but if seq missing, treat rows with pct as potential candidates using index ordering
+      if (seqVal > maxSeq) {
+        maxSeq = seqVal;
+        chosenRow = r;
+      } else if (seqVal === -1 && pctVal > 0 && maxSeq === -1) {
+        // fallback: if no seqs anywhere, choose topmost filled (previous behavior)
+        chosenRow = (chosenRow === null) ? r : chosenRow;
+      }
+    }
+
+    if (!chosenRow) { alert('No layer to clear'); return; }
+
+    // Clear percentage input
+    const pctInput = document.querySelector(`.percentage-input[data-row="${chosenRow}"][data-mill="${bunkerIndex}"]`);
+    if (pctInput) {
+      pctInput.value = '';
+      pctInput.dispatchEvent(new Event('input', { bubbles: true }));
+    }
+
+    // Clear per-cell hidden coal/gcv/cost/seq
+    const hidCoal = document.getElementById(`coal_cell_r${chosenRow}_m${bunkerIndex}`);
+    if (hidCoal) hidCoal.value = '';
+    const hidG = document.getElementById(`gcv_cell_r${chosenRow}_m${bunkerIndex}`);
+    if (hidG) hidG.value = '';
+    const hidC = document.getElementById(`cost_cell_r${chosenRow}_m${bunkerIndex}`);
+    if (hidC) hidC.value = '';
+    const hidSeq = document.getElementById(`seq_cell_r${chosenRow}_m${bunkerIndex}`);
+    if (hidSeq) hidSeq.value = '';
+
+    // If user has a helper to set cell coal, call with empty value to preserve any internal invariants
+    if (typeof setCellCoal === 'function') {
+      try { setCellCoal(chosenRow, bunkerIndex, ''); } catch(e){ /* ignore */ }
+    }
+
+    // If this row is no longer used anywhere (no per-cell coal set and no percentages), clear the global row select
+    const sel = document.getElementById(`coalName${chosenRow}`);
+    let usedElsewhere = false;
+    // CHECK ALL 8 mills (0..7)
+    for (let m = 0; m < 8; m++) {
+      const pct = parseFloat(document.querySelector(`.percentage-input[data-row="${chosenRow}"][data-mill="${m}"]`)?.value) || 0;
+      if (pct > 0) { usedElsewhere = true; break; }
+      const perCellCoalEl = document.getElementById(`coal_cell_r${chosenRow}_m${m}`);
+      if (perCellCoalEl && perCellCoalEl.value) { usedElsewhere = true; break; }
+    }
+    if (!usedElsewhere && sel) {
+      sel.value = '';
+    }
+
+    // run existing updates
+    if (typeof calculateBlended === 'function') calculateBlended();
+    if (typeof validateMillPercentages === 'function') validateMillPercentages();
+    if (typeof updateBunkerColors === 'function') updateBunkerColors();
+
+    // Ensure bunker totals and timers update immediately after clearing last layer
+    if (typeof updateBunkerTotalsUI === 'function') updateBunkerTotalsUI();
+
+    const more = findLastFilledRowForBunker(bunkerIndex);
+    const clearBtn = document.getElementById('clearLastBtn');
+    if (clearBtn) clearBtn.style.display = more ? 'inline-block' : 'none';
+    if (!more) closeCoalPopup();
+  } catch (e) {
+    console.error('[coal-helper] clearLastLayer error', e);
+    alert('Error clearing layer — see console.');
+  }
+}
+</script>
+
+</body>
+</html>

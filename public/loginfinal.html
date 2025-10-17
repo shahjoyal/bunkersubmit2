@@ -1,0 +1,298 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+<title>Login - Combustion Analyzer</title>
+<style>
+    /* Reset & base */
+    * { box-sizing: border-box; margin: 0; padding: 0; }
+    html, body { height: 100%; }
+    body {
+        font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+        background: linear-gradient(135deg, #c6e0ff, #ffffff); /* fallback if video fails */
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        padding-top: 70px; /* room for fixed navbar */
+        overflow-x: hidden;
+        -webkit-font-smoothing:antialiased;
+        -moz-osx-font-smoothing:grayscale;
+    }
+
+    /* ---------- Video background ---------- */
+    .bg-video-wrap {
+        position: fixed;
+        inset: 0; /* shorthand for top/right/bottom/left:0 */
+        width: 100%;
+        height: 100%;
+        z-index: -2;
+        overflow: hidden;
+    }
+
+    /* Video should cover the entire viewport */
+    #bgVideo {
+        position: absolute;
+        top: 50%;
+        left: 50%;
+        width: 100%;
+        height: 100%;
+        transform: translate(-50%, -50%);
+        object-fit: cover; /* critical for responsiveness */
+        min-width: 100%;
+        min-height: 100%;
+    }
+
+    /* a subtle dark overlay so white card text stays readable */
+    .bg-overlay {
+        position: fixed;
+        inset: 0;
+        background: linear-gradient(180deg, rgba(0,0,0,0.2), rgba(0,0,0,0.45));
+        z-index: -1;
+        pointer-events: none;
+        backdrop-filter: blur(0.5px); /* small blur to soften video */
+    }
+
+    /* Navbar */
+    .navbar {
+        width: 100%;
+        background-color: rgba(0,70,145,0.92);
+        display: flex;
+        align-items: center;
+        padding: 10px 30px;
+        color: white;
+        position: fixed;
+        top: 0;
+        left: 0;
+        height: 70px;
+        z-index: 20;
+        box-shadow: 0 4px 12px rgba(0,0,0,0.15);
+        animation: slideDown 1s ease forwards;
+        gap: 12px;
+    }
+
+    .navbar img { height: 50px; margin-right: 12px; animation: bounce 2s infinite; }
+    @keyframes bounce { 0%,100%{transform:translateY(0)} 50%{transform: translateY(-8px);} }
+    .navbar h1 { font-size: 22px; letter-spacing: 1px; animation: fadeIn 1.5s ease forwards; opacity: 0; }
+    @keyframes fadeIn { to { opacity: 1; } }
+    @keyframes slideDown { 0% { transform: translateY(-100px); opacity: 0 } 100% { transform: translateY(0); opacity: 1 } }
+
+    /* Login Container */
+    .login-container {
+        background: rgba(255,255,255,0.88); /* translucent so background shows slightly */
+        padding: 60px 35px 40px;
+        border-radius: 20px;
+        box-shadow: 0 16px 40px rgba(0,0,0,0.22);
+        width: 100%;
+        max-width: 420px;
+        text-align: center;
+        transition: transform 0.3s, box-shadow 0.3s;
+        opacity: 0;
+        animation: fadeInUp 1s forwards 0.5s;
+        position: relative;
+        z-index: 10; /* above overlay and video */
+        backdrop-filter: blur(6px); /* glass effect for readability */
+        -webkit-backdrop-filter: blur(6px);
+    }
+
+    .login-container:hover { transform: translateY(-5px); box-shadow: 0 24px 50px rgba(0,0,0,0.28); }
+    @keyframes fadeInUp { 0% { opacity: 0; transform: translateY(20px); } 100% { opacity: 1; transform: translateY(0); } }
+
+    /* Floating Logo */
+    .login-logo { width: 125px; height: 125px; position: absolute; top: -15px; left: 50%; transform: translateX(-50%); animation: floatLogo 2s ease-in-out infinite; }
+    .login-logo img { width: 100%; height: 100%; border-radius: 0; object-fit: contain; }
+    @keyframes floatLogo { 0%,100%{ transform: translate(-50%, -40px); } 50%{ transform: translate(-50%, -50px); } }
+
+    h2 { color: #004691; font-size: 28px; margin-top: 50px; margin-bottom: 30px; letter-spacing: 1px; position: relative; }
+    h2::after { content: ''; display: block; width: 60px; height: 3px; background: #004691; margin: 8px auto 0; border-radius: 2px; animation: expandLine 1s ease forwards; }
+    @keyframes expandLine { 0% { width: 0; } 100% { width: 60px; } }
+
+    form { margin-top: 6px; }
+    input[type="email"], input[type="password"] {
+        width: 100%;
+        padding: 14px 16px;
+        margin: 12px 0;
+        border: 2px solid #ccc;
+        border-radius: 12px;
+        font-size: 16px;
+        transition: all 0.25s;
+        outline: none;
+        box-shadow: inset 0 2px 5px rgba(0,0,0,0.05);
+        background: rgba(255,255,255,0.9);
+    }
+    input:focus { border-color: #004691; box-shadow: 0 0 12px rgba(0,70,145,0.18); }
+
+    button {
+        background: #004691;
+        width: 100%;
+        font-size: 18px;
+        border-radius: 12px;
+        padding: 14px;
+        color: white;
+        border: none;
+        cursor: pointer;
+        transition: all 0.25s, box-shadow 0.3s;
+        margin-top: 10px;
+    }
+    button:hover { background-color: #013b79; transform: scale(1.03); box-shadow: 0 6px 20px rgba(0,0,0,0.2); }
+
+    #message { color: red; font-size: 14px; margin-top: 10px; min-height: 18px; transition: all 0.3s; }
+    p { color: #555; font-size: 16px; margin-top: 15px; }
+    a { color: #004691; text-decoration: none; font-weight: bold; transition: all 0.3s; }
+    a:hover { text-decoration: underline; color: #013b79; }
+
+    .footer { margin-top: 14px; color: #666; font-size: 13px; }
+
+    /* small helper: "play hint" when autoplay blocked (hidden by default) */
+    .video-play-hint {
+        display: none;
+        margin-top: 12px;
+        font-size: 13px;
+        color: #fff;
+        background: rgba(1,59,121,0.85);
+        padding: 8px 12px;
+        border-radius: 999px;
+    }
+
+    /* Responsive rules */
+    @media screen and (max-width: 900px) {
+        .login-container { max-width: 480px; padding: 48px 28px 30px; border-radius: 18px; }
+    }
+
+    @media screen and (max-width: 768px) {
+        .navbar { padding: 8px 18px; height: 62px; }
+        .navbar img { height: 40px; }
+        .navbar h1 { font-size: 18px; }
+        .login-container { margin: 0 20px; width: calc(100% - 40px); max-width: 420px; padding: 42px 20px 26px; }
+        .login-logo { width: 95px; height: 95px; top: -18px; }
+    }
+
+    @media screen and (max-width: 480px) {
+        .login-container { padding: 36px 16px 22px; border-radius: 14px; width: calc(100% - 32px); }
+        .login-logo { width: 70px; height: 70px; top: -12px; }
+        input[type="email"], input[type="password"] { font-size: 15px; padding: 12px 14px; }
+        button { font-size: 16px; padding: 12px; }
+        h2 { font-size: 22px; margin-top: 40px; }
+    }
+</style>
+</head>
+<body>
+
+<!-- Video wrapper - change the src to your looping video path.
+     Recommended: a short loop (3-12s) compressed for web (mp4 / h.264). -->
+<div class="bg-video-wrap" aria-hidden="true">
+    <video id="bgVideo" autoplay muted loop playsinline poster="assets/bg-poster.jpg">
+        <!-- Replace this path with your video file -->
+        <source src="coalbunkering.mp4" type="video/mp4" />
+        <!-- Optional additional formats:
+        <source src="assets/bg-loop.webm" type="video/webm" />
+        -->
+        <!-- Fallback text -->
+        Your browser does not support the video tag. The page will show a static background instead.
+    </video>
+</div>
+
+<!-- overlay to darken the video for contrast -->
+<div class="bg-overlay" aria-hidden="true"></div>
+
+<!-- Navbar -->
+<div class="navbar" role="banner">
+    <img src="/public/images/abhitech-logo.png" alt="Abhitech logo">
+    <h1>ABCD-Advanced Bunkering and Coal Database</h1>
+</div>
+
+<!-- Login container -->
+<div class="login-container" role="main" aria-labelledby="loginTitle">
+    <div class="login-logo" aria-hidden="true">
+        <img src="/public/images/abhitech-logo.png" alt="">
+    </div>
+
+    <h2 id="loginTitle">LOGIN</h2>
+
+    <form id="loginForm" autocomplete="on" novalidate>
+        <label class="visually-hidden" for="email">Email</label>
+        <input type="email" id="email" name="email" placeholder="Email" required autocomplete="email" aria-required="true" />
+
+        <label class="visually-hidden" for="password">Password</label>
+        <input type="password" id="password" name="password" placeholder="Password" required autocomplete="current-password" aria-required="true" />
+
+        <button type="submit" aria-label="Login">Login</button>
+    </form>
+
+    <div id="message" role="status" aria-live="polite"></div>
+
+    <!-- Shown only if autoplay is blocked (JS will toggle) -->
+    <div id="playHint" class="video-play-hint" role="note">Tap to play background video for motion.</div>
+
+    <div class="footer">© 2025 Abhitech Energycon Limited</div>
+</div>
+
+<script>
+/* form handling (keeps same dummy validation you had) */
+const loginForm = document.getElementById('loginForm');
+const message = document.getElementById('message');
+
+loginForm.addEventListener('submit', function(e) {
+    e.preventDefault();
+    const email = document.getElementById('email').value.trim();
+    const password = document.getElementById('password').value.trim();
+
+    if(!email || !password) {
+        message.style.color = 'red';
+        message.textContent = 'Please fill in both fields.';
+        return;
+    }
+
+    // Dummy login validation (preserve your credentials)
+    if(email === 'coalblend@abhitech.com' && password === 'password123') {
+       localStorage.setItem('isLoggedIn', 'true'); 
+       message.style.color = 'green';
+       message.textContent = 'Login successful!';
+       // Redirect to homepage
+       window.location.href = '/public/input.html';
+    } else {
+       message.style.color = 'red';
+       message.textContent = 'Invalid email or password.';
+    }
+});
+
+/* Attempt to play the background video — if browser blocks autoplay, show a hint */
+const bgVideo = document.getElementById('bgVideo');
+const playHint = document.getElementById('playHint');
+
+function tryPlayVideo() {
+    if(!bgVideo) return;
+    bgVideo.muted = true; // ensure muted for autoplay policies
+    const playPromise = bgVideo.play();
+    if (playPromise !== undefined) {
+        playPromise.then(() => {
+            // autoplay worked — hide any hint
+            if (playHint) playHint.style.display = 'none';
+        }).catch(() => {
+            // autoplay blocked — show hint and allow user to start video
+            if (playHint) {
+                playHint.style.display = 'inline-block';
+                playHint.addEventListener('click', () => {
+                    bgVideo.muted = false; // optional: unmute if you want (usually keep muted)
+                    bgVideo.play();
+                    playHint.style.display = 'none';
+                }, { once: true });
+            }
+        });
+    }
+}
+
+// Try to play now and also after any user interaction (some browsers allow after user gesture)
+tryPlayVideo();
+document.addEventListener('click', tryPlayVideo, { once: true });
+
+/* Accessibility helper: focus email field on load for keyboard users */
+window.addEventListener('load', () => {
+    const email = document.getElementById('email');
+    if(email) email.focus();
+});
+</script>
+
+</body>
+</html>
