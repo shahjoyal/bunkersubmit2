@@ -4,6 +4,26 @@ var latestBlendId = null;
 window.COAL_DB = window.COAL_DB || [];
 window.NUM_COAL_ROWS = window.NUM_COAL_ROWS || 5; // keep synchronized with HTML
 
+// === suppress flag to avoid autosave/timers during programmatic population ===
+window.__suppressInputEvents = false;
+
+// small helper used by populateFormFromPayload to block handlers while filling DOM
+function withSuppressedInputs(fn){
+  try {
+    window.__suppressInputEvents = true;
+    fn && fn();
+  } finally {
+    // small timeout to allow the browser to settle after DOM updates
+    setTimeout(()=> { window.__suppressInputEvents = false; }, 50);
+  }
+
+    // calling calculate/update hooks after population is fine
+  if (typeof updateBunkerColors === 'function') updateBunkerColors();
+  if (typeof calculateBlended === 'function') calculateBlended();
+  if (typeof validateMillPercentages === 'function') validateMillPercentages();
+  if (typeof updateBunkerTotalsUI === 'function') updateBunkerTotalsUI();
+}
+
 
 // ---------- Unit / per-unit blend-id mapping (persisted) ----------
 const BLEND_IDS_KEY = '__blendIdsByUnit_v1';
@@ -875,6 +895,13 @@ window.addEventListener('load', async function(){
 
   try { initUnitButtons(); } catch(e) { console.warn('initUnitButtons error', e); }
   try { setCurrentUnit(window.currentUnit || 1); } catch(e) { console.warn('setCurrentUnit error', e); }
+});
+document.addEventListener('DOMContentLoaded', function(){
+  if (typeof initUnitButtons === 'function') initUnitButtons();
+  // prefer fast setter if available
+  window.setCurrentUnit = window.setCurrentUnit || window.setCurrentUnitFast || window.setCurrentUnit;
+  // ensure initial unit displayed
+  try { window.setCurrentUnit(Number(localStorage.getItem('currentUnit') || window.currentUnit || 1)); } catch(e){}
 });
 
 /* --- helper: when user picks a coal per cell (mill) call setCellCoal(row,mill,coalId) --- */
