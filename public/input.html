@@ -404,6 +404,27 @@ html, body {
 
 /* final safety: ensure no body scrollbars */
 html, body { overflow: hidden; }
+/* active unit button highlight */
+.unit-btn.active {
+  background: linear-gradient(180deg,#0ea5a4,#057d74);
+  color: #fff;
+  border: 2px solid rgba(255,255,255,0.14);
+  transform: translateY(-2px);
+}
+
+/* timer blink warning */
+@keyframes timerBlink {
+  0% { background: #ffefef; color: #000; }
+  50% { background: #ff0000; color: #fff; }
+  100% { background: #ffefef; color: #000; }
+}
+.timer-warning {
+  animation: timerBlink 1s linear infinite;
+  border-radius: 6px;
+  padding: 2px 6px;
+  font-weight:700;
+}
+
 </style>
   <script>
      if(localStorage.getItem('isLoggedIn') !== 'true') {
@@ -1382,6 +1403,7 @@ function attachAutoUpdate(){
     inp.dataset.prev = inp.value || '';
     inp.addEventListener('focus', function(){ this.dataset.prev = this.value; });
     inp.addEventListener('input', function(){
+      if (window.__suppressInputEvents) return;
       const millIndex = Number(this.dataset.mill);
       let sum = 0;
       for(let r=1;r<=NUM_COAL_ROWS;r++) sum += parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${millIndex}"]`)?.value) || 0;
@@ -1926,16 +1948,27 @@ setInterval(updateBunkerTooltips, 1500);
   }
 
   // Update the "Bunker Total" inputs (class total-input) with percent string
-  function updateBunkerTotalsUI(){
-    for(let m=0;m<8;m++){
-      const el = document.querySelector(`.total-input[data-mill="${m}"]`);
-      const sumPct = getBunkerPercentSum(m);
-      if(el){
-        el.value = `${sumPct.toFixed(2)}%`;
-        el.dataset.percent = String(sumPct);
-      }
+function updateBunkerTotalsUI(){
+  const N = (typeof NUM_COAL_ROWS !== 'undefined') ? Number(NUM_COAL_ROWS) : (window.NUM_COAL_ROWS || 5);
+  for (let m = 0; m < 8; m++) {
+    // prefer an explicit total input element (class total-inputs)
+    const el = document.querySelector(`.total-inputs[data-mill="${m}"]`) || document.querySelector(`.total-input[data-mill="${m}"]`);
+    // compute sum robustly
+    let sum = 0;
+    for (let r = 1; r <= N; r++) {
+      const v = parseFloat(document.querySelector(`.percentage-input[data-row="${r}"][data-mill="${m}"]`)?.value) || 0;
+      sum += v;
+    }
+    // clamp and format
+    const sumClamped = Math.max(0, Math.min(100, sum));
+    if (el) {
+      el.value = `${sumClamped.toFixed(2)}%`;
+      el.dataset.percent = String(sumClamped.toFixed(2));
     }
   }
+}
+window.updateBunkerTotalsUI = updateBunkerTotalsUI;
+
 
   // Get per-bunker capacity (tries multiple selectors then falls back)
   function getBunkerCapacityForIndex(bIndex){
@@ -2859,6 +2892,7 @@ function attachToRects(){
       if(inp.__liveTimersWired) return;
       inp.__liveTimersWired = true;
       inp.addEventListener('input', function(){
+        if (window.__suppressInputEvents) return;
         const b = this.getAttribute('data-mill');
         if(b === null) computeAllAndStart();
         else computeAndStartForBunker(Number(b));
@@ -2874,6 +2908,7 @@ function attachToRects(){
       if(inp.__liveTimersWired) return;
       inp.__liveTimersWired = true;
       inp.addEventListener('input', function(){
+        if (window.__suppressInputEvents) return;
         const b = this.getAttribute('data-mill');
         if(b === null) computeAllAndStart();
         else computeAndStartForBunker(Number(b));
@@ -3238,6 +3273,7 @@ function attachToRects(){
       if(inp.__bunkerManagerWired) return;
       inp.__bunkerManagerWired = true;
       inp.addEventListener('input', function(){
+        if (window.__suppressInputEvents) return;
         const b = this.getAttribute('data-mill');
         if(b === null || b === undefined){
           for(let i=0;i<BUNKER_COUNT;i++){
@@ -3263,6 +3299,7 @@ function attachToRects(){
       if(inp.__bunkerManagerWired) return;
       inp.__bunkerManagerWired = true;
       inp.addEventListener('input', function(){
+        if (window.__suppressInputEvents) return;
         const b = this.getAttribute('data-mill');
         if(b === null || b === undefined){
           computeAllAndStart();
@@ -3413,6 +3450,24 @@ function clearLastLayer() {
   }
 }
 </script>
+<script>
+  // show blinking warning when remaining <= 3 hours (10800s)
+(function(){
+  const WARN_THRESHOLD = 3 * 3600; // seconds
+  setInterval(()=>{
+    // choose both selectors you use for timer displays
+    const timerEls = Array.from(document.querySelectorAll('.timers-input, .timer-input, input[id^="nextTimer"]'));
+    timerEls.forEach(el=>{
+      const secs = Number(el.dataset.seconds || el.getAttribute('data-seconds') || 0) || 0;
+      if (secs > 0 && secs <= WARN_THRESHOLD) {
+        el.classList.add('timer-warning');
+      } else {
+        el.classList.remove('timer-warning');
+      }
+    });
+  }, 1000);
+})();
 
+</script>
 </body>
 </html>
